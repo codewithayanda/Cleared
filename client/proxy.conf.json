@@ -1,0 +1,13 @@
+{
+  "/api": {
+    "target": "http://localhost:5038",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/health": {
+    "target": "http://localhost:5038",
+    "secure": false,
+    "changeOrigin": true
+  }
+}
