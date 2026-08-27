@@ -1,0 +1,84 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: server — build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('server/Directory.Packages.props', 'server/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore Cleared.slnx
+
+      - name: Build
+        run: dotnet build Cleared.slnx --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test Cleared.slnx --no-build --configuration Release --logger "trx;LogFileName=results.trx" --results-directory ../artifacts/test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
+  vulnerable-packages:
+    name: server — vulnerable package scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Cleared.slnx
+
+      - name: Fail on vulnerable or deprecated packages
+        run: |
+          dotnet list Cleared.slnx package --vulnerable --include-transitive > vuln.txt 2>&1 || true
+          cat vuln.txt
+          if grep -qiE '(Critical|High|Moderate|Low)$|has the following vulnerable packages' vuln.txt; then
+            echo "::error::Vulnerable packages found — see output above (NFR S-09)"
+            exit 1
+          fi
+          echo "No vulnerable packages reported."

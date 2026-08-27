@@ -1,6 +1,6 @@
 @Cleared.API_HostAddress = http://localhost:5038
 
-GET {{Cleared.API_HostAddress}}/
+GET {{Cleared.API_HostAddress}}/health
 Accept: application/json
 
 ###

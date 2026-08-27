@@ -8,10 +8,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Cleared.API\Cleared.API.csproj" />
-    <ProjectReference Include="..\Cleared.Application\Cleared.Application.csproj" />
     <ProjectReference Include="..\Cleared.Domain\Cleared.Domain.csproj" />
-    <ProjectReference Include="..\Cleared.Infrastructure\Cleared.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

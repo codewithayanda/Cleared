@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="Cleared.API/Cleared.API.csproj" Id="337a215f-407a-4ec5-bde9-d8c78464c160" />
+    <Project Path="Cleared.Application/Cleared.Application.csproj" Id="fb545afd-6017-4488-a4d7-83eca42cc6b8" />
+    <Project Path="Cleared.Domain/Cleared.Domain.csproj" Id="1db182d4-3ba3-4494-ab6b-c66050a4789b" />
+    <Project Path="Cleared.Infrastructure/Cleared.Infrastructure.csproj" Id="ab962b15-01f0-49b8-b73c-ea842937c739" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="Cleared.Application.Tests/Cleared.Application.Tests.csproj" />
+    <Project Path="Cleared.Architecture.Tests/Cleared.Architecture.Tests.csproj" />
+    <Project Path="Cleared.Domain.Tests/Cleared.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
