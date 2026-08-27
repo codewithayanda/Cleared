@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cleared.API\Cleared.API.csproj" />
+    <ProjectReference Include="..\Cleared.Application\Cleared.Application.csproj" />
+    <ProjectReference Include="..\Cleared.Domain\Cleared.Domain.csproj" />
+    <ProjectReference Include="..\Cleared.Infrastructure\Cleared.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

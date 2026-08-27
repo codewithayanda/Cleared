@@ -1,0 +1,22 @@
+<Project>
+
+  <ItemGroup Label="Packages that must never enter this solution">
+    <BannedPackage Include="Microsoft.EntityFrameworkCore.InMemory"
+                   Reason="Has no transactions, isolation levels, row locks or row-level security, so it would pass a broken implementation of tenant isolation and invoice numbering. Use Testcontainers against real Postgres." />
+    <BannedPackage Include="MediatR"
+                   Reason="Commercially licensed above a revenue threshold. Use plain Application services (ADR 0004)." />
+    <BannedPackage Include="AutoMapper"
+                   Reason="Commercially licensed above a revenue threshold. Use manual mapping or Mapperly (ADR 0004)." />
+  </ItemGroup>
+
+  <Target Name="FailOnBannedPackages" BeforeTargets="CollectPackageReferences;Build">
+    <ItemGroup>
+      <_BannedNotReferenced Include="@(BannedPackage)" Exclude="@(PackageReference)" />
+      <_BannedReferenced Include="@(BannedPackage)" Exclude="@(_BannedNotReferenced)" />
+    </ItemGroup>
+    <Error Condition="'@(_BannedReferenced)' != ''"
+           Code="CLEARED001"
+           Text="$(MSBuildProjectName) references a banned package.%0A  @(_BannedReferenced->'%(Identity) — %(Reason)', '%0A  ')" />
+  </Target>
+
+</Project>
