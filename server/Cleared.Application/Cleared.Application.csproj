@@ -4,4 +4,12 @@
     <ProjectReference Include="..\Cleared.Domain\Cleared.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Invoices\" />
+    <Folder Include="Customers\" />
+    <Folder Include="Abstractions\" />
+    <Folder Include="Common\" />
+    <Folder Include="Payments\" />
+  </ItemGroup>
+
 </Project>
