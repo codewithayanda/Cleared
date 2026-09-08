@@ -5,10 +5,11 @@ namespace Cleared.Application.Customers;
 
 public sealed class CreateCustomerService(ICustomerRepository customerRepository, IUnitOfWork unitOfWork)
 {
-    public async Task<CustomerResponse> CreateAsync(CreateCustomerRequest request, CancellationToken cancellationToken)
+    public async Task<CustomerResponse> CreateAsync(
+        Guid tenantId, CreateCustomerRequest request, CancellationToken cancellationToken)
     {
         var customer = Customer.Create(
-            Guid.NewGuid(), request.TenantId, request.Name, DateTimeOffset.UtcNow, request.VatNumber, request.Email);
+            Guid.NewGuid(), tenantId, request.Name, DateTimeOffset.UtcNow, request.VatNumber, request.Email);
 
         await customerRepository.AddAsync(customer, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);

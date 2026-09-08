@@ -5,15 +5,13 @@ using Cleared.Domain.Invoicing;
 
 namespace Cleared.Application.Invoices;
 
-// NOTE: TenantId comes from the request/query string for now — there is no auth or
-// tenant-context middleware yet. This is a known, temporary gap, not a design decision.
-// It must be replaced by a signed token claim before this is exposed beyond local dev.
 public sealed class InvoiceService(
     IInvoiceRepository invoiceRepository, IInvoiceNumberAllocator numberAllocator, IUnitOfWork unitOfWork)
 {
-    public async Task<InvoiceResponse> CreateAsync(CreateInvoiceRequest request, CancellationToken cancellationToken)
+    public async Task<InvoiceResponse> CreateAsync(
+        Guid tenantId, CreateInvoiceRequest request, CancellationToken cancellationToken)
     {
-        var invoice = Invoice.CreateDraft(Guid.NewGuid(), request.TenantId, request.CustomerId);
+        var invoice = Invoice.CreateDraft(Guid.NewGuid(), tenantId, request.CustomerId);
 
         foreach (var line in request.Lines)
         {
