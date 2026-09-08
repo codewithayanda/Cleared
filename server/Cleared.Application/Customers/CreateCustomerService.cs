@@ -9,7 +9,8 @@ public sealed class CreateCustomerService(ICustomerRepository customerRepository
         Guid tenantId, CreateCustomerRequest request, CancellationToken cancellationToken)
     {
         var customer = Customer.Create(
-            Guid.NewGuid(), tenantId, request.Name, DateTimeOffset.UtcNow, request.VatNumber, request.Email);
+            Guid.NewGuid(), tenantId, request.Name, DateTimeOffset.UtcNow,
+            request.VatNumber, request.Email, request.Address);
 
         await customerRepository.AddAsync(customer, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -25,5 +26,5 @@ public sealed class CreateCustomerService(ICustomerRepository customerRepository
     }
 
     private static CustomerResponse ToResponse(Customer customer) => new(
-        customer.Id, customer.TenantId, customer.Name, customer.VatNumber, customer.Email);
+        customer.Id, customer.TenantId, customer.Name, customer.VatNumber, customer.Email, customer.Address);
 }

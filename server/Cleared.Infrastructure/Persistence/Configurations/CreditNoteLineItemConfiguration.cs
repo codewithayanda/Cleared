@@ -4,45 +4,43 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Cleared.Infrastructure.Persistence.Configurations;
 
-public sealed class InvoiceLineItemConfiguration : IEntityTypeConfiguration<InvoiceLineItem>
+public sealed class CreditNoteLineItemConfiguration : IEntityTypeConfiguration<CreditNoteLineItem>
 {
-    public void Configure(EntityTypeBuilder<InvoiceLineItem> builder)
+    public void Configure(EntityTypeBuilder<CreditNoteLineItem> builder)
     {
-        builder.ToTable("invoice_line_items");
+        builder.ToTable("credit_note_line_items");
 
-        builder.HasKey(li => li.Id);
+        builder.HasKey(l => l.Id);
 
-        builder.Property(li => li.Description)
+        builder.Property(l => l.Description)
             .IsRequired()
             .HasMaxLength(500);
 
-        builder.Property(li => li.Quantity)
+        builder.Property(l => l.Quantity)
             .HasPrecision(18, 4);
 
-        builder.Property(li => li.VatTreatment)
+        builder.Property(l => l.VatTreatment)
             .HasConversion<string>()
             .HasMaxLength(20);
 
-        builder.ComplexProperty(li => li.UnitPrice, money =>
+        builder.ComplexProperty(l => l.UnitPrice, money =>
         {
             money.Property(m => m.Amount).HasPrecision(18, 2);
             money.Property(m => m.Currency).HasConversion<string>().HasMaxLength(3);
         });
 
-        builder.ComplexProperty(li => li.LineSubtotal, money =>
+        builder.ComplexProperty(l => l.LineSubtotal, money =>
         {
             money.Property(m => m.Amount).HasPrecision(18, 2);
             money.Property(m => m.Currency).HasConversion<string>().HasMaxLength(3);
         });
 
-        builder.ComplexProperty(li => li.LineVat, money =>
+        builder.ComplexProperty(l => l.LineVat, money =>
         {
             money.Property(m => m.Amount).HasPrecision(18, 2);
             money.Property(m => m.Currency).HasConversion<string>().HasMaxLength(3);
         });
 
-        // LineTotal is computed live (LineSubtotal + LineVat) — never stored, same
-        // reasoning as Invoice.Subtotal.
-        builder.Ignore(li => li.LineTotal);
+        builder.HasIndex(l => l.InvoiceLineItemId);
     }
 }

@@ -14,6 +14,11 @@ public sealed class ClearedDbContext(DbContextOptions<ClearedDbContext> options,
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
+
+    // Not tenant-scoped — national reference data, shared by every tenant. See the ERD's
+    // note on the few tables that are deliberately not filtered this way.
+    public DbSet<VatRate> VatRates => Set<VatRate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,5 +27,6 @@ public sealed class ClearedDbContext(DbContextOptions<ClearedDbContext> options,
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ClearedDbContext).Assembly);
         modelBuilder.Entity<Customer>().HasQueryFilter(c => c.TenantId == tenantContext.TenantId);
         modelBuilder.Entity<Invoice>().HasQueryFilter(i => i.TenantId == tenantContext.TenantId);
+        modelBuilder.Entity<CreditNote>().HasQueryFilter(cn => cn.TenantId == tenantContext.TenantId);
     }
 }

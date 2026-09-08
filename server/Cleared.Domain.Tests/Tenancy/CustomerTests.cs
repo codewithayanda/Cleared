@@ -23,13 +23,23 @@ public class CustomerTests
     public void Create_ValidInput_SetsAllFields()
     {
         var customer = Customer.Create(
-            Guid.NewGuid(), TenantId, "Jane Doe", Now, vatNumber: "4123456789", email: "jane@example.co.za");
+            Guid.NewGuid(), TenantId, "Jane Doe", Now,
+            vatNumber: "4123456789", email: "jane@example.co.za", address: "1 Main Road, Cape Town");
 
         Assert.Equal(TenantId, customer.TenantId);
         Assert.Equal("Jane Doe", customer.Name);
         Assert.Equal("4123456789", customer.VatNumber);
         Assert.Equal("jane@example.co.za", customer.Email);
+        Assert.Equal("1 Main Road, Cape Town", customer.Address);
         Assert.Equal(Now, customer.CreatedAt);
+    }
+
+    [Fact]
+    public void Create_NoAddress_LeavesAddressNull()
+    {
+        var customer = Customer.Create(Guid.NewGuid(), TenantId, "Jane Doe", Now);
+
+        Assert.Null(customer.Address);
     }
 
     [Fact]
@@ -45,10 +55,12 @@ public class CustomerTests
     {
         var customer = Customer.Create(Guid.NewGuid(), TenantId, "Jane Doe", Now);
 
-        customer.UpdateDetails("Jane Smith", email: "jane.smith@example.co.za");
+        customer.UpdateDetails(
+            "Jane Smith", email: "jane.smith@example.co.za", address: "2 Main Road, Cape Town");
 
         Assert.Equal("Jane Smith", customer.Name);
         Assert.Equal("jane.smith@example.co.za", customer.Email);
+        Assert.Equal("2 Main Road, Cape Town", customer.Address);
         Assert.Null(customer.VatNumber);
     }
 }

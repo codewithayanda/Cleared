@@ -20,6 +20,9 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.Email)
             .HasMaxLength(320);
 
+        builder.Property(c => c.Address)
+            .HasMaxLength(500);
+
         builder.HasIndex(c => new { c.TenantId, c.Name });
     }
 }
