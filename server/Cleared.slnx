@@ -9,5 +9,6 @@
     <Project Path="Cleared.Application.Tests/Cleared.Application.Tests.csproj" />
     <Project Path="Cleared.Architecture.Tests/Cleared.Architecture.Tests.csproj" />
     <Project Path="Cleared.Domain.Tests/Cleared.Domain.Tests.csproj" />
+    <Project Path="Cleared.Integration.Tests/Cleared.Integration.Tests.csproj" />
   </Folder>
 </Solution>

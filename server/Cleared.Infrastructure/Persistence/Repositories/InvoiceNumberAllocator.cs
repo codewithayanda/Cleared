@@ -1,3 +1,4 @@
+using System.Data;
 using Cleared.Application.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -7,14 +8,21 @@ namespace Cleared.Infrastructure.Persistence.Repositories;
 // Claims the next number for (tenant, year) in one round trip using Postgres's UPSERT.
 // INSERT ... ON CONFLICT DO UPDATE is atomic at the row level — Postgres itself serialises
 // concurrent callers for the same (tenant_id, year) row, so this is safe under concurrency
-// without an explicit application-level row lock. It must run inside the same transaction
-// as the invoice save (see InvoiceService.IssueAsync) so a later failure rolls back the
-// claim too — otherwise a save failure after this call leaves a permanent gap.
+// without an explicit application-level row lock. It should run inside the same
+// transaction as the invoice save (see InvoiceService.IssueAsync) so a later failure
+// rolls back the claim too — otherwise a save failure after this call leaves a permanent
+// gap — but it doesn't depend on one: it opens the connection itself if nothing already
+// has, rather than silently assuming a caller opened it first.
 public sealed class InvoiceNumberAllocator(ClearedDbContext dbContext) : IInvoiceNumberAllocator
 {
     public async Task<string> AllocateAsync(Guid tenantId, int year, CancellationToken cancellationToken)
     {
         var connection = dbContext.Database.GetDbConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
 
         await using var command = connection.CreateCommand();
         command.Transaction = dbContext.Database.CurrentTransaction?.GetDbTransaction();
