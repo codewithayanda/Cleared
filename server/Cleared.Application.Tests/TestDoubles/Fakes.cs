@@ -1,5 +1,10 @@
 using Cleared.Application.Abstractions;
+using Cleared.Application.Customers;
+using Cleared.Application.Invoices;
+using Cleared.Application.Tenants;
+using Cleared.Domain.Auditing;
 using Cleared.Domain.Invoicing;
+using Cleared.Domain.Payments;
 using Cleared.Domain.Tenancy;
 
 namespace Cleared.Application.Tests.TestDoubles;
@@ -120,4 +125,44 @@ internal sealed class FakeClock(DateOnly today) : IClock
     public DateTimeOffset UtcNow => today.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
     public DateOnly Today => today;
+}
+
+internal sealed class FakePaymentRepository : IPaymentRepository
+{
+    private readonly List<Payment> _payments = [];
+
+    public Task AddAsync(Payment payment, CancellationToken cancellationToken)
+    {
+        _payments.Add(payment);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<Payment>> ListByInvoiceIdAsync(
+        Guid tenantId, Guid invoiceId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Payment>>(
+            _payments.Where(p => p.TenantId == tenantId && p.InvoiceId == invoiceId).ToList());
+}
+
+internal sealed class FakeAuditLogRepository : IAuditLogRepository
+{
+    public List<AuditLog> Entries { get; } = [];
+
+    public Task AddAsync(AuditLog entry, CancellationToken cancellationToken)
+    {
+        Entries.Add(entry);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<AuditLog>> ListAsync(Guid tenantId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<AuditLog>>(Entries.Where(e => e.TenantId == tenantId).ToList());
+}
+
+internal sealed class FakeCurrentUserContext(Guid userId) : ICurrentUserContext
+{
+    public Guid UserId => userId;
+}
+
+internal sealed class FakeInvoicePdfRenderer : IInvoicePdfRenderer
+{
+    public byte[] Render(InvoiceResponse invoice, CustomerResponse customer, TenantResponse tenant) => [1, 2, 3];
 }

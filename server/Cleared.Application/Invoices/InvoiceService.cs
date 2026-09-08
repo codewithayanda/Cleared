@@ -1,5 +1,8 @@
 using System.Globalization;
 using Cleared.Application.Abstractions;
+using Cleared.Application.Customers;
+using Cleared.Application.Tenants;
+using Cleared.Domain.Auditing;
 using Cleared.Domain.Common;
 using Cleared.Domain.Invoicing;
 using Cleared.Domain.Tenancy;
@@ -12,7 +15,11 @@ public sealed class InvoiceService(
     ICustomerRepository customerRepository,
     IVatRateRepository vatRateRepository,
     IInvoiceNumberAllocator numberAllocator,
-    IUnitOfWork unitOfWork)
+    IAuditLogRepository auditLogRepository,
+    IInvoicePdfRenderer pdfRenderer,
+    IUnitOfWork unitOfWork,
+    ICurrentUserContext currentUserContext,
+    IClock clock)
 {
     public async Task<InvoiceResponse> CreateAsync(
         Guid tenantId, CreateInvoiceRequest request, CancellationToken cancellationToken)
@@ -91,10 +98,33 @@ public sealed class InvoiceService(
         var number = await numberAllocator.AllocateAsync(tenantId, request.IssueDate.Year, cancellationToken);
         invoice.Issue(number, request.IssueDate, supplyDate, request.DueDate, documentType, vatRate.Rate);
 
+        var auditEntry = AuditLog.Record(
+            Guid.NewGuid(), tenantId, currentUserContext.UserId, "Invoice", invoice.Id, "Issued", clock.UtcNow,
+            $"Issued as {number}, total R{invoice.Total.Amount:F2}.");
+        await auditLogRepository.AddAsync(auditEntry, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         return InvoiceMapper.ToResponse(invoice);
+    }
+
+    public async Task<byte[]?> GetPdfAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
+    {
+        var invoice = await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken);
+        if (invoice is null)
+        {
+            return null;
+        }
+
+        var tenant = await tenantRepository.GetByIdAsync(tenantId, cancellationToken)
+            ?? throw new InvalidOperationException("The current tenant no longer exists.");
+
+        var customer = await customerRepository.GetByIdAsync(tenantId, invoice.CustomerId, cancellationToken)
+            ?? throw new InvalidOperationException("The customer on this invoice no longer exists.");
+
+        return pdfRenderer.Render(
+            InvoiceMapper.ToResponse(invoice), CustomerMapper.ToResponse(customer), TenantMapper.ToResponse(tenant));
     }
 
     // VAT Act s20(4): every tax invoice must identify its recipient by name and address;

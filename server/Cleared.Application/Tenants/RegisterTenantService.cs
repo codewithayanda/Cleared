@@ -14,9 +14,6 @@ public sealed class RegisterTenantService(ITenantRepository tenantRepository, IU
         await tenantRepository.AddAsync(tenant, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return ToResponse(tenant);
+        return TenantMapper.ToResponse(tenant);
     }
-
-    private static TenantResponse ToResponse(Tenant tenant) => new(
-        tenant.Id, tenant.CompanyName, tenant.TradingName, tenant.VatStatus.ToString(), tenant.VatNumber);
 }

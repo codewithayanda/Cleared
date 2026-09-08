@@ -15,9 +15,11 @@ public class CreditNoteServiceTests
 
     private readonly FakeInvoiceRepository _invoiceRepository = new();
     private readonly FakeCreditNoteRepository _creditNoteRepository = new();
+    private readonly FakeAuditLogRepository _auditLogRepository = new();
 
     private CreditNoteService CreateService() => new(
-        _invoiceRepository, _creditNoteRepository, new FakeCreditNoteNumberAllocator(), new FakeUnitOfWork(),
+        _invoiceRepository, _creditNoteRepository, new FakeCreditNoteNumberAllocator(),
+        _auditLogRepository, new FakeUnitOfWork(), new FakeCurrentUserContext(Guid.NewGuid()),
         new FakeClock(_today));
 
     private Invoice SeedIssuedInvoice(params (decimal Quantity, decimal UnitPrice)[] lines)
@@ -143,6 +145,36 @@ public class CreditNoteServiceTests
             CancellationToken.None);
 
         Assert.Equal(InvoiceStatus.Cancelled, invoice.Status);
+    }
+
+    [Fact]
+    public async Task CreateAsync_AgainstPartiallyPaidInvoice_Succeeds()
+    {
+        var invoice = SeedIssuedInvoice((1m, 1000m));
+        invoice.RecordPaymentTotal(Money.Zar(500m)); // Total 1150 -> PartiallyPaid
+        var service = CreateService();
+        var request = new CreateCreditNoteRequest(
+            "Faulty goods", [new CreateCreditNoteLineRequest(invoice.Lines[0].Id, 1m)]);
+
+        var creditNote = await service.CreateAsync(_tenantId, invoice.Id, request, CancellationToken.None);
+
+        Assert.NotNull(creditNote);
+        Assert.Equal(InvoiceStatus.Cancelled, invoice.Status);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ValidCredit_WritesAnAuditLogEntry()
+    {
+        var invoice = SeedIssuedInvoice((1m, 1000m));
+        var service = CreateService();
+        var request = new CreateCreditNoteRequest(
+            "Faulty goods", [new CreateCreditNoteLineRequest(invoice.Lines[0].Id, 1m)]);
+
+        await service.CreateAsync(_tenantId, invoice.Id, request, CancellationToken.None);
+
+        var entry = Assert.Single(_auditLogRepository.Entries);
+        Assert.Equal("CreditNoteIssued", entry.Action);
+        Assert.Equal(invoice.Id, entry.EntityId);
     }
 
     [Fact]

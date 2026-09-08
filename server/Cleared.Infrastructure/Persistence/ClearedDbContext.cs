@@ -1,5 +1,7 @@
 using Cleared.Application.Abstractions;
+using Cleared.Domain.Auditing;
 using Cleared.Domain.Invoicing;
+using Cleared.Domain.Payments;
 using Cleared.Domain.Tenancy;
 using Cleared.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -15,6 +17,8 @@ public sealed class ClearedDbContext(DbContextOptions<ClearedDbContext> options,
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     // Not tenant-scoped — national reference data, shared by every tenant. See the ERD's
     // note on the few tables that are deliberately not filtered this way.
@@ -28,5 +32,7 @@ public sealed class ClearedDbContext(DbContextOptions<ClearedDbContext> options,
         modelBuilder.Entity<Customer>().HasQueryFilter(c => c.TenantId == tenantContext.TenantId);
         modelBuilder.Entity<Invoice>().HasQueryFilter(i => i.TenantId == tenantContext.TenantId);
         modelBuilder.Entity<CreditNote>().HasQueryFilter(cn => cn.TenantId == tenantContext.TenantId);
+        modelBuilder.Entity<Payment>().HasQueryFilter(p => p.TenantId == tenantContext.TenantId);
+        modelBuilder.Entity<AuditLog>().HasQueryFilter(a => a.TenantId == tenantContext.TenantId);
     }
 }

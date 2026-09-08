@@ -15,16 +15,13 @@ public sealed class CreateCustomerService(ICustomerRepository customerRepository
         await customerRepository.AddAsync(customer, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return ToResponse(customer);
+        return CustomerMapper.ToResponse(customer);
     }
 
     public async Task<IReadOnlyList<CustomerResponse>> ListAsync(Guid tenantId, CancellationToken cancellationToken)
     {
         var customers = await customerRepository.ListAsync(tenantId, cancellationToken);
 
-        return customers.Select(ToResponse).ToList();
+        return customers.Select(CustomerMapper.ToResponse).ToList();
     }
-
-    private static CustomerResponse ToResponse(Customer customer) => new(
-        customer.Id, customer.TenantId, customer.Name, customer.VatNumber, customer.Email, customer.Address);
 }

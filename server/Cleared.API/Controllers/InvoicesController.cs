@@ -41,4 +41,12 @@ public sealed class InvoicesController(InvoiceService invoiceService, ITenantCon
 
         return invoice is null ? NotFound() : Ok(invoice);
     }
+
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> GetPdf(Guid id, CancellationToken cancellationToken)
+    {
+        var pdf = await invoiceService.GetPdfAsync(tenantContext.TenantId, id, cancellationToken);
+
+        return pdf is null ? NotFound() : File(pdf, "application/pdf", $"invoice-{id}.pdf");
+    }
 }

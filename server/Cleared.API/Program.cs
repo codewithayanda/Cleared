@@ -2,11 +2,14 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Cleared.API.Middleware;
 using Cleared.Application.Abstractions;
+using Cleared.Application.Auditing;
 using Cleared.Application.CreditNotes;
 using Cleared.Application.Customers;
 using Cleared.Application.Invoices;
+using Cleared.Application.Payments;
 using Cleared.Application.Tenants;
 using Cleared.Infrastructure;
+using Cleared.Infrastructure.Documents;
 using Cleared.Infrastructure.Identity;
 using Cleared.Infrastructure.Persistence;
 using Cleared.Infrastructure.Persistence.Repositories;
@@ -15,7 +18,12 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QuestPDF.Infrastructure;
 using Scalar.AspNetCore;
+
+// Community license: free under $1M USD annual revenue — see the package comment in
+// Directory.Packages.props and the ADR this decision needs.
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -72,14 +80,20 @@ builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
 builder.Services.AddScoped<ICreditNoteRepository, CreditNoteRepository>();
 builder.Services.AddScoped<IVatRateRepository, VatRateRepository>();
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IInvoiceNumberAllocator, InvoiceNumberAllocator>();
 builder.Services.AddScoped<ICreditNoteNumberAllocator, CreditNoteNumberAllocator>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
+builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<IClock, SystemClock>();
+builder.Services.AddSingleton<IInvoicePdfRenderer, QuestPdfInvoiceRenderer>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<CreditNoteService>();
+builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddScoped<CreateCustomerService>();
 builder.Services.AddScoped<RegisterTenantService>();
 

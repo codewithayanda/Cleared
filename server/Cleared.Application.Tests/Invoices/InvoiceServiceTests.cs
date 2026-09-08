@@ -13,10 +13,12 @@ public class InvoiceServiceTests
     private readonly FakeTenantRepository _tenantRepository = new();
     private readonly FakeCustomerRepository _customerRepository = new();
     private readonly FakeInvoiceRepository _invoiceRepository = new();
+    private readonly FakeAuditLogRepository _auditLogRepository = new();
 
     private InvoiceService CreateService() => new(
         _invoiceRepository, _tenantRepository, _customerRepository, new FakeVatRateRepository(),
-        new FakeInvoiceNumberAllocator(), new FakeUnitOfWork());
+        new FakeInvoiceNumberAllocator(), _auditLogRepository, new FakeInvoicePdfRenderer(),
+        new FakeUnitOfWork(), new FakeCurrentUserContext(Guid.NewGuid()), new FakeClock(_today));
 
     private Guid SeedTenant(VatStatus vatStatus, string? vatNumber = "4123456789")
     {
@@ -138,6 +140,22 @@ public class InvoiceServiceTests
 
         Assert.Equal(nameof(DocumentType.Invoice), issued!.DocumentType);
         Assert.Equal("0.00", issued.VatTotal);
+    }
+
+    [Fact]
+    public async Task IssueAsync_Succeeds_WritesAnAuditLogEntry()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var invoice = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        await service.IssueAsync(tenantId, invoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
+
+        var entry = Assert.Single(_auditLogRepository.Entries);
+        Assert.Equal("Issued", entry.Action);
+        Assert.Equal(invoice.Id, entry.EntityId);
     }
 
     [Fact]

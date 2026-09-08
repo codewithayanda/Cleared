@@ -149,16 +149,40 @@ public sealed class Invoice : Entity
     // A tax invoice can never be edited or deleted once issued — the only lawful
     // correction is a credit note (see CreditNote). Whether a given credit note fully
     // covers this invoice (and so should cancel it) or only partially credits it is a
-    // cross-aggregate question CreditNoteService answers before calling this.
+    // cross-aggregate question CreditNoteService answers before calling this. Reachable
+    // from PartiallyPaid and Paid too, not just Issued: a customer can pay first and need
+    // a credit later. Crediting a Paid invoice implies money is now owed back — this only
+    // flips the status; it does not itself move any money, which is a real, deliberate
+    // gap until there's a way to actually send a refund.
     public void Cancel()
     {
-        if (Status != InvoiceStatus.Issued)
+        if (Status is not (InvoiceStatus.Issued or InvoiceStatus.PartiallyPaid or InvoiceStatus.Paid))
         {
             throw new InvalidOperationException(
-                "Only an issued invoice can be cancelled, and only via a credit note.");
+                "Only an issued, partially paid or paid invoice can be cancelled, and only via a credit note.");
         }
 
         Status = InvoiceStatus.Cancelled;
+    }
+
+    // totalPaid is the sum of every succeeded payment against this invoice, including
+    // whichever one triggered this call — computed by the caller (PaymentService), which
+    // can see every Payment; Invoice itself has no reference back to them (same reasoning
+    // as CreditNote — see Issue()'s note on cross-aggregate data).
+    public void RecordPaymentTotal(Money totalPaid)
+    {
+        if (Status is not (InvoiceStatus.Issued or InvoiceStatus.PartiallyPaid))
+        {
+            throw new InvalidOperationException("Payments can only be recorded against an issued invoice.");
+        }
+
+        if (totalPaid.Amount > Total.Amount)
+        {
+            throw new InvalidOperationException(
+                "Recording this payment would take the total paid above the invoice total.");
+        }
+
+        Status = totalPaid.Amount >= Total.Amount ? InvoiceStatus.Paid : InvoiceStatus.PartiallyPaid;
     }
 
     public bool IsOverdue(DateOnly today) =>

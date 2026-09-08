@@ -1,5 +1,6 @@
 using System.Globalization;
 using Cleared.Application.Abstractions;
+using Cleared.Domain.Auditing;
 using Cleared.Domain.Common;
 using Cleared.Domain.Invoicing;
 
@@ -9,7 +10,9 @@ public sealed class CreditNoteService(
     IInvoiceRepository invoiceRepository,
     ICreditNoteRepository creditNoteRepository,
     ICreditNoteNumberAllocator numberAllocator,
+    IAuditLogRepository auditLogRepository,
     IUnitOfWork unitOfWork,
+    ICurrentUserContext currentUserContext,
     IClock clock)
 {
     // Returns null for an invoice that doesn't exist for this tenant — including one that
@@ -25,9 +28,10 @@ public sealed class CreditNoteService(
             return null;
         }
 
-        if (invoice.Status != InvoiceStatus.Issued)
+        if (invoice.Status is not (InvoiceStatus.Issued or InvoiceStatus.PartiallyPaid or InvoiceStatus.Paid))
         {
-            throw new InvalidOperationException("A credit note can only be issued against an issued invoice.");
+            throw new InvalidOperationException(
+                "A credit note can only be issued against an issued, partially paid or paid invoice.");
         }
 
         if (request.Lines.Count == 0)
@@ -98,6 +102,13 @@ public sealed class CreditNoteService(
         {
             invoice.Cancel();
         }
+
+        var auditEntry = AuditLog.Record(
+            Guid.NewGuid(), tenantId, currentUserContext.UserId, "Invoice", invoiceId, "CreditNoteIssued",
+            clock.UtcNow,
+            $"Issued credit note {number} for R{creditNote.Total.Amount:F2} — {request.Reason}" +
+            (fullyCredited ? " (invoice fully credited, now cancelled)." : "."));
+        await auditLogRepository.AddAsync(auditEntry, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

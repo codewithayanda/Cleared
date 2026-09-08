@@ -321,6 +321,32 @@ public class InvoiceTests
     }
 
     [Fact]
+    public void Cancel_PartiallyPaidInvoice_Succeeds()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(1000m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice); // Total = 1150.00
+        invoice.RecordPaymentTotal(Money.Zar(500m));
+
+        invoice.Cancel();
+
+        Assert.Equal(InvoiceStatus.Cancelled, invoice.Status);
+    }
+
+    [Fact]
+    public void Cancel_PaidInvoice_Succeeds()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(1000m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice); // Total = 1150.00
+        invoice.RecordPaymentTotal(Money.Zar(1150m));
+
+        invoice.Cancel();
+
+        Assert.Equal(InvoiceStatus.Cancelled, invoice.Status);
+    }
+
+    [Fact]
     public void Cancel_AlreadyCancelled_Throws()
     {
         var invoice = NewDraft();
@@ -329,6 +355,75 @@ public class InvoiceTests
         invoice.Cancel();
 
         Assert.Throws<InvalidOperationException>(invoice.Cancel);
+    }
+
+    // --- Recording payments ---
+
+    [Fact]
+    public void RecordPaymentTotal_DraftInvoice_Throws()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
+
+        Assert.Throws<InvalidOperationException>(() => invoice.RecordPaymentTotal(Money.Zar(100m)));
+    }
+
+    [Fact]
+    public void RecordPaymentTotal_LessThanTotal_TransitionsToPartiallyPaid()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(1000m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice); // Total = 1150.00
+
+        invoice.RecordPaymentTotal(Money.Zar(500m));
+
+        Assert.Equal(InvoiceStatus.PartiallyPaid, invoice.Status);
+    }
+
+    [Fact]
+    public void RecordPaymentTotal_EqualToTotal_TransitionsToPaid()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(1000m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice); // Total = 1150.00
+
+        invoice.RecordPaymentTotal(Money.Zar(1150m));
+
+        Assert.Equal(InvoiceStatus.Paid, invoice.Status);
+    }
+
+    [Fact]
+    public void RecordPaymentTotal_MoreThanTotal_Throws()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(1000m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice); // Total = 1150.00
+
+        Assert.Throws<InvalidOperationException>(() => invoice.RecordPaymentTotal(Money.Zar(1150.01m)));
+    }
+
+    [Fact]
+    public void RecordPaymentTotal_SecondPaymentCompletingTheTotal_TransitionsFromPartiallyPaidToPaid()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(1000m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice); // Total = 1150.00
+        invoice.RecordPaymentTotal(Money.Zar(500m));
+
+        invoice.RecordPaymentTotal(Money.Zar(1150m));
+
+        Assert.Equal(InvoiceStatus.Paid, invoice.Status);
+    }
+
+    [Fact]
+    public void RecordPaymentTotal_CancelledInvoice_Throws()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice);
+        invoice.Cancel();
+
+        Assert.Throws<InvalidOperationException>(() => invoice.RecordPaymentTotal(Money.Zar(100m)));
     }
 
     // --- Derived overdue ---
