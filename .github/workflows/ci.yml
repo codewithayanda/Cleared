@@ -20,6 +20,23 @@ jobs:
     defaults:
       run:
         working-directory: server
+    env:
+      ConnectionStrings__Cleared: "Host=127.0.0.1;Port=5432;Database=cleared_ci;Username=postgres;Password=postgres"
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cleared_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -44,7 +61,7 @@ jobs:
         run: dotnet build Cleared.slnx --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test Cleared.slnx --no-build --configuration Release --logger "trx;LogFileName=results.trx" --results-directory ../artifacts/test-results
+        run: dotnet test Cleared.slnx --no-build --configuration Release --logger trx --results-directory ../artifacts/test-results
 
       - name: Upload test results
         if: always()
