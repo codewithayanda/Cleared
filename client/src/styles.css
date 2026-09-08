@@ -1,3 +1,53 @@
-/* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+
+/* Cleared — metallic/steel theme. A brushed-steel chrome (sidebar, headers) with a warm
+   gold accent for primary actions, on a light content surface so financial figures stay
+   high-contrast and readable. Loosely inspired by SARS's official/institutional tone,
+   translated into a metallic palette rather than SARS's own blue. */
+@theme {
+  --color-steel-950: #12151a;
+  --color-steel-900: #1a1f26;
+  --color-steel-800: #232933;
+  --color-steel-700: #313945;
+  --color-steel-600: #454f5e;
+  --color-steel-500: #5c6879;
+  --color-steel-400: #7c8798;
+  --color-steel-300: #a4adb9;
+  --color-steel-200: #ccd1d9;
+  --color-steel-100: #e4e7ec;
+  --color-steel-50: #f6f7f9;
+
+  --color-gold-700: #8a6410;
+  --color-gold-600: #a8791a;
+  --color-gold-500: #c99a2e;
+  --color-gold-400: #dcb24d;
+  --color-gold-100: #f7ecd4;
+
+  --color-status-draft: #5c6879;
+  --color-status-issued: #2b6cb0;
+  --color-status-paid: #2f7d4f;
+  --color-status-overdue: #b3413a;
+  --color-status-cancelled: #8a8f98;
+
+  --font-sans: 'Segoe UI', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-steel-50);
+  color: var(--color-steel-900);
+  font-family: var(--font-sans);
+}
+
+/* A restrained metallic sheen for the sidebar/header chrome, without leaning on images. */
+.metallic-chrome {
+  background-image: linear-gradient(180deg, var(--color-steel-900) 0%, var(--color-steel-950) 100%);
+}
+
+.metallic-card-accent {
+  background-image: linear-gradient(135deg, var(--color-steel-800) 0%, var(--color-steel-900) 100%);
+}
