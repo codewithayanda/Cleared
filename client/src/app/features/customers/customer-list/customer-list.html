@@ -45,6 +45,11 @@
           >
             VAT number
           </th>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Address
+          </th>
         </tr>
       </thead>
       <tbody class="divide-y divide-steel-100">
@@ -53,6 +58,9 @@
             <td class="px-4 py-3 text-sm font-medium text-steel-900">{{ customer.name }}</td>
             <td class="px-4 py-3 text-sm text-steel-600">{{ customer.email || '—' }}</td>
             <td class="px-4 py-3 text-sm text-steel-600">{{ customer.vatNumber || '—' }}</td>
+            <td class="max-w-xs truncate px-4 py-3 text-sm text-steel-600">
+              {{ customer.address || '—' }}
+            </td>
           </tr>
         }
       </tbody>

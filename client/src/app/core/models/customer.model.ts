@@ -2,6 +2,7 @@ export interface CreateCustomerRequest {
   name: string;
   vatNumber: string | null;
   email: string | null;
+  address: string | null;
 }
 
 export interface Customer {
@@ -10,4 +11,5 @@ export interface Customer {
   name: string;
   vatNumber: string | null;
   email: string | null;
+  address: string | null;
 }

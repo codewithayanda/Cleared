@@ -32,7 +32,7 @@
     <div formArrayName="lines" class="space-y-3">
       @for (line of lines.controls; track line; let i = $index) {
         <div [formGroupName]="i" class="grid grid-cols-12 items-start gap-2">
-          <div class="col-span-6">
+          <div class="col-span-4">
             <input
               type="text"
               formControlName="description"
@@ -57,6 +57,16 @@
               placeholder="Price"
               class="block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
             />
+          </div>
+          <div class="col-span-2">
+            <select
+              formControlName="vatTreatment"
+              class="block w-full rounded-md border border-steel-200 px-2 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+            >
+              @for (treatment of vatTreatments; track treatment.value) {
+                <option [value]="treatment.value">{{ treatment.label }}</option>
+              }
+            </select>
           </div>
           <div class="col-span-1 flex h-9 items-center justify-end text-sm text-steel-600">
             {{ lineTotal(i) | number: '1.2-2' }}

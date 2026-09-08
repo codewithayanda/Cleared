@@ -1,8 +1,16 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { InvoiceService } from '@core/services/invoice.service';
-import { Invoice } from '@core/models/invoice.model';
+import { Invoice, ProblemDetails, VatTreatment } from '@core/models/invoice.model';
+
+const VAT_TREATMENT_LABELS: Record<VatTreatment, string> = {
+  Standard: 'Standard',
+  ZeroRated: 'Zero-rated',
+  Exempt: 'Exempt',
+  NotApplicable: 'N/A',
+};
 import { StatusBadge } from '@shared/components/status-badge/status-badge';
 
 @Component({
@@ -20,6 +28,15 @@ export class InvoiceDetail {
   protected readonly loading = signal(true);
   protected readonly issuing = signal(false);
   protected readonly showIssueForm = signal(false);
+  protected readonly issueError = signal<string | null>(null);
+  protected readonly issueErrorFields = signal<string[] | null>(null);
+
+  // "0.150000" -> "15" — a rate is a fraction snapshotted at issue (see VatRate), never
+  // recomputed; this only formats it for display.
+  protected readonly vatRatePercentage = computed(() => {
+    const rate = this.invoice()?.vatRateApplied;
+    return rate ? (Number(rate) * 100).toFixed(0) : null;
+  });
 
   protected readonly issueForm = this.fb.nonNullable.group({
     issueDate: [today(), Validators.required],
@@ -42,6 +59,10 @@ export class InvoiceDetail {
     });
   }
 
+  protected treatmentLabel(treatment: VatTreatment): string {
+    return VAT_TREATMENT_LABELS[treatment];
+  }
+
   protected confirmIssue(): void {
     const current = this.invoice();
     if (!current || this.issueForm.invalid) {
@@ -49,6 +70,8 @@ export class InvoiceDetail {
     }
 
     this.issuing.set(true);
+    this.issueError.set(null);
+    this.issueErrorFields.set(null);
 
     this.invoiceService.issue(current.id, this.issueForm.getRawValue()).subscribe({
       next: (updated) => {
@@ -56,7 +79,13 @@ export class InvoiceDetail {
         this.issuing.set(false);
         this.showIssueForm.set(false);
       },
-      error: () => this.issuing.set(false),
+      error: (error: unknown) => {
+        this.issuing.set(false);
+
+        const problem = error instanceof HttpErrorResponse ? (error.error as ProblemDetails) : null;
+        this.issueError.set(problem?.detail ?? 'Something went wrong issuing this invoice.');
+        this.issueErrorFields.set(problem?.missingFields ?? null);
+      },
     });
   }
 }

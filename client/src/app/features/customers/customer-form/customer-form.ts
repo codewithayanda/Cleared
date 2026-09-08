@@ -20,6 +20,7 @@ export class CustomerForm {
     name: ['', Validators.required],
     email: [''],
     vatNumber: [''],
+    address: [''],
   });
 
   protected submit(): void {
@@ -28,12 +29,17 @@ export class CustomerForm {
       return;
     }
 
-    const { name, email, vatNumber } = this.form.getRawValue();
+    const { name, email, vatNumber, address } = this.form.getRawValue();
 
     this.submitting.set(true);
 
     this.customerService
-      .create({ name, email: email || null, vatNumber: vatNumber || null })
+      .create({
+        name,
+        email: email || null,
+        vatNumber: vatNumber || null,
+        address: address || null,
+      })
       .subscribe({
         next: () => this.router.navigateByUrl('/customers'),
         error: () => this.submitting.set(false),

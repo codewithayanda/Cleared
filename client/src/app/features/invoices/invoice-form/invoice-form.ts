@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { CustomerService } from '@core/services/customer.service';
 import { InvoiceService } from '@core/services/invoice.service';
 import { Customer } from '@core/models/customer.model';
+import { VatTreatment } from '@core/models/invoice.model';
 
 @Component({
   selector: 'app-invoice-form',
@@ -20,6 +21,13 @@ export class InvoiceForm {
 
   protected readonly customers = signal<Customer[]>([]);
   protected readonly submitting = signal(false);
+
+  // NotApplicable isn't offered here — see VatTreatment.
+  protected readonly vatTreatments: { value: VatTreatment; label: string }[] = [
+    { value: 'Standard', label: 'Standard' },
+    { value: 'ZeroRated', label: 'Zero-rated' },
+    { value: 'Exempt', label: 'Exempt' },
+  ];
 
   protected readonly form = this.fb.nonNullable.group({
     customerId: ['', Validators.required],
@@ -39,6 +47,7 @@ export class InvoiceForm {
       description: ['', Validators.required],
       quantity: [1, [Validators.required, Validators.min(0.0001)]],
       unitPrice: [0, [Validators.required, Validators.min(0.01)]],
+      vatTreatment: this.fb.nonNullable.control<VatTreatment>('Standard'),
     });
   }
 
@@ -81,6 +90,7 @@ export class InvoiceForm {
           description: line.description,
           quantity: line.quantity,
           unitPrice: line.unitPrice.toFixed(2),
+          vatTreatment: line.vatTreatment,
         })),
       })
       .subscribe({

@@ -9,6 +9,13 @@
       <div class="mt-2 flex items-center gap-3">
         <h1 class="text-2xl font-medium text-steel-900">{{ inv.number || 'Draft invoice' }}</h1>
         <app-status-badge [status]="inv.status" />
+        @if (inv.documentType) {
+          <span
+            class="inline-flex items-center rounded-full bg-steel-100 px-2.5 py-0.5 text-xs font-medium text-steel-600"
+          >
+            {{ inv.documentType === 'TaxInvoice' ? 'Tax Invoice' : 'Invoice' }}
+          </span>
+        }
       </div>
     </div>
 
@@ -69,11 +76,24 @@
           Cancel
         </button>
       </form>
+
+      @if (issueError()) {
+        <div class="mt-4 rounded-md border border-status-overdue/30 bg-white p-3">
+          <p class="text-sm font-medium text-status-overdue">{{ issueError() }}</p>
+          @if (issueErrorFields(); as fields) {
+            <ul class="mt-1 list-inside list-disc text-sm text-steel-600">
+              @for (field of fields; track field) {
+                <li>{{ field }}</li>
+              }
+            </ul>
+          }
+        </div>
+      }
     </div>
   }
 
   <div
-    class="grid grid-cols-2 gap-4 rounded-lg border border-steel-200 bg-white p-6 shadow-sm sm:grid-cols-4"
+    class="grid grid-cols-2 gap-4 rounded-lg border border-steel-200 bg-white p-6 shadow-sm sm:grid-cols-5"
   >
     <div>
       <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Issue date</dt>
@@ -83,9 +103,19 @@
       <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Due date</dt>
       <dd class="mt-1 text-sm text-steel-900">{{ inv.dueDate || '—' }}</dd>
     </div>
-    <div class="col-span-2 text-right sm:col-span-2">
+    <div class="text-right">
       <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Subtotal</dt>
-      <dd class="mt-1 text-lg font-medium text-steel-900">R {{ inv.subtotal }}</dd>
+      <dd class="mt-1 text-sm text-steel-900">R {{ inv.subtotal }}</dd>
+    </div>
+    <div class="text-right">
+      <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">
+        VAT @ {{ vatRatePercentage() ?? '—' }}%
+      </dt>
+      <dd class="mt-1 text-sm text-steel-900">R {{ inv.vatTotal }}</dd>
+    </div>
+    <div class="col-span-2 text-right sm:col-span-1">
+      <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Total</dt>
+      <dd class="mt-1 text-lg font-medium text-steel-900">R {{ inv.total }}</dd>
     </div>
   </div>
 
@@ -109,6 +139,21 @@
             Unit price
           </th>
           <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            VAT
+          </th>
+          <th
+            class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Subtotal
+          </th>
+          <th
+            class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            VAT amount
+          </th>
+          <th
             class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
           >
             Line total
@@ -121,8 +166,13 @@
             <td class="px-4 py-3 text-sm text-steel-900">{{ line.description }}</td>
             <td class="px-4 py-3 text-right text-sm text-steel-600">{{ line.quantity }}</td>
             <td class="px-4 py-3 text-right text-sm text-steel-600">R {{ line.unitPrice }}</td>
+            <td class="px-4 py-3 text-sm text-steel-600">
+              {{ treatmentLabel(line.vatTreatment) }}
+            </td>
+            <td class="px-4 py-3 text-right text-sm text-steel-600">R {{ line.lineSubtotal }}</td>
+            <td class="px-4 py-3 text-right text-sm text-steel-600">R {{ line.lineVat }}</td>
             <td class="px-4 py-3 text-right text-sm font-medium text-steel-900">
-              R {{ line.lineSubtotal }}
+              R {{ line.lineTotal }}
             </td>
           </tr>
         }

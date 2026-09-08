@@ -48,7 +48,7 @@
           <th
             class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
           >
-            Subtotal
+            Total
           </th>
         </tr>
       </thead>
@@ -61,7 +61,7 @@
             <td class="px-4 py-3 text-sm"><app-status-badge [status]="invoice.status" /></td>
             <td class="px-4 py-3 text-sm text-steel-600">{{ invoice.dueDate || '—' }}</td>
             <td class="px-4 py-3 text-right text-sm font-medium text-steel-900">
-              R {{ invoice.subtotal }}
+              R {{ invoice.total }}
             </td>
           </tr>
         }
