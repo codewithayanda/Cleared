@@ -1,11 +1,52 @@
 import { Routes } from '@angular/router';
+import { authGuard } from '@core/guards/auth.guard';
 
-// Two lazy groups, kept deliberately separate:
-//
-//   /pay/:token   unauthenticated, opened by the Owner's customer, often on a
-//                 mid-range phone over mobile data. Must stay under the payment
-//                 page bundle budget (NFR P-11), so nothing from the authenticated
-//                 app may leak into this chunk.
-//
-//   everything else  authenticated, behind authGuard.
-export const routes: Routes = [];
+export const routes: Routes = [
+  {
+    path: 'login',
+    loadComponent: () => import('./features/auth/login/login').then((m) => m.Login),
+  },
+  {
+    path: 'get-started',
+    loadComponent: () =>
+      import('./features/auth/get-started/get-started').then((m) => m.GetStarted),
+  },
+  {
+    path: '',
+    canActivate: [authGuard],
+    loadComponent: () => import('./core/layout/shell/shell').then((m) => m.Shell),
+    children: [
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'dashboard',
+        loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
+      },
+      {
+        path: 'customers',
+        loadComponent: () =>
+          import('./features/customers/customer-list/customer-list').then((m) => m.CustomerList),
+      },
+      {
+        path: 'customers/new',
+        loadComponent: () =>
+          import('./features/customers/customer-form/customer-form').then((m) => m.CustomerForm),
+      },
+      {
+        path: 'invoices',
+        loadComponent: () =>
+          import('./features/invoices/invoice-list/invoice-list').then((m) => m.InvoiceList),
+      },
+      {
+        path: 'invoices/new',
+        loadComponent: () =>
+          import('./features/invoices/invoice-form/invoice-form').then((m) => m.InvoiceForm),
+      },
+      {
+        path: 'invoices/:id',
+        loadComponent: () =>
+          import('./features/invoices/invoice-detail/invoice-detail').then((m) => m.InvoiceDetail),
+      },
+    ],
+  },
+  { path: '**', redirectTo: 'login' },
+];

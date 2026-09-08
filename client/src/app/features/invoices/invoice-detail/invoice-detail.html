@@ -1,0 +1,134 @@
+@if (loading()) {
+  <p class="text-sm text-steel-500">Loading…</p>
+} @else if (invoice(); as inv) {
+  <div class="mb-6 flex items-start justify-between">
+    <div>
+      <a routerLink="/invoices" class="text-sm text-steel-500 hover:text-steel-700"
+        >← Back to invoices</a
+      >
+      <div class="mt-2 flex items-center gap-3">
+        <h1 class="text-2xl font-medium text-steel-900">{{ inv.number || 'Draft invoice' }}</h1>
+        <app-status-badge [status]="inv.status" />
+      </div>
+    </div>
+
+    @if (inv.status === 'Draft' && !showIssueForm()) {
+      <button
+        type="button"
+        (click)="showIssueForm.set(true)"
+        class="rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700"
+      >
+        Issue invoice
+      </button>
+    }
+  </div>
+
+  @if (showIssueForm()) {
+    <div class="mb-6 rounded-lg border border-gold-400 bg-gold-100 p-5">
+      <h2 class="text-sm font-medium text-steel-800">Issue this invoice</h2>
+      <p class="mt-1 text-xs text-steel-600">
+        This allocates a permanent invoice number and locks the line items. It can't be undone —
+        corrections after this point go through a credit note.
+      </p>
+
+      <form
+        [formGroup]="issueForm"
+        (ngSubmit)="confirmIssue()"
+        class="mt-4 flex flex-wrap items-end gap-4"
+      >
+        <div>
+          <label for="issueDate" class="block text-xs font-medium text-steel-700">Issue date</label>
+          <input
+            id="issueDate"
+            type="date"
+            formControlName="issueDate"
+            class="mt-1 rounded-md border border-steel-200 px-3 py-1.5 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+          />
+        </div>
+        <div>
+          <label for="dueDate" class="block text-xs font-medium text-steel-700">Due date</label>
+          <input
+            id="dueDate"
+            type="date"
+            formControlName="dueDate"
+            class="mt-1 rounded-md border border-steel-200 px-3 py-1.5 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+          />
+        </div>
+        <button
+          type="submit"
+          [disabled]="issuing()"
+          class="rounded-md bg-steel-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-steel-800 disabled:opacity-60"
+        >
+          {{ issuing() ? 'Issuing…' : 'Confirm' }}
+        </button>
+        <button
+          type="button"
+          (click)="showIssueForm.set(false)"
+          class="text-sm font-medium text-steel-500 hover:text-steel-700"
+        >
+          Cancel
+        </button>
+      </form>
+    </div>
+  }
+
+  <div
+    class="grid grid-cols-2 gap-4 rounded-lg border border-steel-200 bg-white p-6 shadow-sm sm:grid-cols-4"
+  >
+    <div>
+      <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Issue date</dt>
+      <dd class="mt-1 text-sm text-steel-900">{{ inv.issueDate || '—' }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Due date</dt>
+      <dd class="mt-1 text-sm text-steel-900">{{ inv.dueDate || '—' }}</dd>
+    </div>
+    <div class="col-span-2 text-right sm:col-span-2">
+      <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Subtotal</dt>
+      <dd class="mt-1 text-lg font-medium text-steel-900">R {{ inv.subtotal }}</dd>
+    </div>
+  </div>
+
+  <div class="mt-6 overflow-hidden rounded-lg border border-steel-200 bg-white shadow-sm">
+    <table class="min-w-full divide-y divide-steel-100">
+      <thead class="bg-steel-50">
+        <tr>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Description
+          </th>
+          <th
+            class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Qty
+          </th>
+          <th
+            class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Unit price
+          </th>
+          <th
+            class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Line total
+          </th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-steel-100">
+        @for (line of inv.lines; track line.id) {
+          <tr>
+            <td class="px-4 py-3 text-sm text-steel-900">{{ line.description }}</td>
+            <td class="px-4 py-3 text-right text-sm text-steel-600">{{ line.quantity }}</td>
+            <td class="px-4 py-3 text-right text-sm text-steel-600">R {{ line.unitPrice }}</td>
+            <td class="px-4 py-3 text-right text-sm font-medium text-steel-900">
+              R {{ line.lineSubtotal }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+} @else {
+  <p class="text-sm text-status-overdue">This invoice couldn't be found.</p>
+}

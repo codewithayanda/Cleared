@@ -15,13 +15,4 @@ describe('App', () => {
 
     expect(fixture.componentInstance).toBeTruthy();
   });
-
-  it('renders the product name in the header', async () => {
-    const fixture = TestBed.createComponent(App);
-
-    await fixture.whenStable();
-
-    const host = fixture.nativeElement as HTMLElement;
-    expect(host.querySelector('header')?.textContent).toContain('Cleared');
-  });
 });

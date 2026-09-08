@@ -1,0 +1,60 @@
+<div class="mb-6">
+  <h1 class="text-2xl font-medium text-steel-900">New customer</h1>
+  <p class="mt-1 text-sm text-steel-500">Add someone you'll be invoicing.</p>
+</div>
+
+<form
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  class="max-w-lg space-y-4 rounded-lg border border-steel-200 bg-white p-6 shadow-sm"
+>
+  <div>
+    <label for="name" class="block text-sm font-medium text-steel-700">Name</label>
+    <input
+      id="name"
+      type="text"
+      formControlName="name"
+      class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+    />
+    @if (form.controls.name.invalid && form.controls.name.touched) {
+      <p class="mt-1 text-xs text-status-overdue">A name is required.</p>
+    }
+  </div>
+
+  <div>
+    <label for="email" class="block text-sm font-medium text-steel-700"
+      >Email <span class="text-steel-400">(optional)</span></label
+    >
+    <input
+      id="email"
+      type="email"
+      formControlName="email"
+      class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+    />
+  </div>
+
+  <div>
+    <label for="vatNumber" class="block text-sm font-medium text-steel-700"
+      >VAT number <span class="text-steel-400">(optional)</span></label
+    >
+    <input
+      id="vatNumber"
+      type="text"
+      formControlName="vatNumber"
+      class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+    />
+  </div>
+
+  <div class="flex items-center gap-3 pt-2">
+    <button
+      type="submit"
+      [disabled]="submitting()"
+      class="rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700 disabled:opacity-60"
+    >
+      {{ submitting() ? 'Saving…' : 'Save customer' }}
+    </button>
+    <a routerLink="/customers" class="text-sm font-medium text-steel-500 hover:text-steel-700"
+      >Cancel</a
+    >
+  </div>
+</form>

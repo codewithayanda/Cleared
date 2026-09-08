@@ -1,0 +1,71 @@
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-medium text-steel-900">Invoices</h1>
+    <p class="mt-1 text-sm text-steel-500">Everything you've drafted, issued and sent.</p>
+  </div>
+  <a
+    routerLink="/invoices/new"
+    class="rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700"
+  >
+    New invoice
+  </a>
+</div>
+
+@if (loading()) {
+  <p class="text-sm text-steel-500">Loading…</p>
+} @else if (invoices().length === 0) {
+  <app-empty-state
+    title="No invoices yet"
+    description="Create your first invoice once you've added a customer."
+  >
+    <a
+      routerLink="/invoices/new"
+      class="mt-4 text-sm font-medium text-gold-600 hover:text-gold-700"
+    >
+      Create an invoice →
+    </a>
+  </app-empty-state>
+} @else {
+  <div class="overflow-hidden rounded-lg border border-steel-200 bg-white shadow-sm">
+    <table class="min-w-full divide-y divide-steel-100">
+      <thead class="bg-steel-50">
+        <tr>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Number
+          </th>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Status
+          </th>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Due date
+          </th>
+          <th
+            class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Subtotal
+          </th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-steel-100">
+        @for (invoice of invoices(); track invoice.id) {
+          <tr [routerLink]="['/invoices', invoice.id]" class="cursor-pointer hover:bg-steel-50">
+            <td class="px-4 py-3 text-sm font-medium text-steel-900">
+              {{ invoice.number || 'Draft' }}
+            </td>
+            <td class="px-4 py-3 text-sm"><app-status-badge [status]="invoice.status" /></td>
+            <td class="px-4 py-3 text-sm text-steel-600">{{ invoice.dueDate || '—' }}</td>
+            <td class="px-4 py-3 text-right text-sm font-medium text-steel-900">
+              R {{ invoice.subtotal }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

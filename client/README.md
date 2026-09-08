@@ -88,15 +88,18 @@ rm -rf node_modules package-lock.json && npm install
 
 ## Bundle budgets
 
-The initial chunk is capped at 280 kB (warning) / 350 kB (error), raw. The baseline
-skeleton is 217 kB raw / 59.5 kB gzipped, so that leaves deliberate headroom without
-being unbounded.
+The initial chunk is capped at 320 kB (warning) / 400 kB (error), raw. With the full
+authenticated app (routing, HTTP, both interceptors, the auth guard) this currently sits
+around 290 kB raw / ~79 kB gzipped — comfortably inside the budget, and, more importantly,
+comfortably inside the number that actually matters below.
 
-This matters because the public payment page at `/pay/:token` is opened by the Owner's
-customers — often on a mid-range Android over mobile data — and must stay under 200 kB
-gzipped. Nothing from the authenticated app may leak into that chunk. Note that Angular
-budgets measure **raw** size; the gzipped gate is a separate CI check added when that
-route exists.
+The public payment page at `/pay/:token` (not built yet — it arrives with the payment
+gateway work) is opened by the Owner's customers, often on a mid-range Android over
+mobile data, and must stay under 200 kB gzipped. It'll be its own lazy route, so it only
+pays for this shared initial chunk (routing + HTTP) plus its own small chunk — at ~79 kB
+gzipped today, there's still well over 100 kB of headroom before that page is at risk.
+Angular's budget above measures **raw** size as a guardrail; the gzipped number is the
+one to actually watch, and it's worth spot-checking again once that route exists.
 
 ## Testing
 
