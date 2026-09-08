@@ -12,6 +12,7 @@
     </PackageVersion>
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.11" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.17.3" />
   </ItemGroup>
   <ItemGroup Label="Testing">
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
