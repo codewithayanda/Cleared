@@ -7,4 +7,6 @@ public interface IPaymentRepository
     Task AddAsync(Payment payment, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Payment>> ListByInvoiceIdAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Payment>> ListByTenantIdAsync(Guid tenantId, CancellationToken cancellationToken);
 }

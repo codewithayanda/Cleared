@@ -1,6 +1,8 @@
 using Cleared.Application.Invoices;
 using Cleared.Application.Tests.TestDoubles;
+using Cleared.Domain.Common;
 using Cleared.Domain.Invoicing;
+using Cleared.Domain.Payments;
 using Cleared.Domain.Tenancy;
 
 namespace Cleared.Application.Tests.Invoices;
@@ -14,10 +16,11 @@ public class InvoiceServiceTests
     private readonly FakeCustomerRepository _customerRepository = new();
     private readonly FakeInvoiceRepository _invoiceRepository = new();
     private readonly FakeAuditLogRepository _auditLogRepository = new();
+    private readonly FakePaymentRepository _paymentRepository = new();
 
     private InvoiceService CreateService() => new(
         _invoiceRepository, _tenantRepository, _customerRepository, new FakeVatRateRepository(),
-        new FakeInvoiceNumberAllocator(), _auditLogRepository, new FakeInvoicePdfRenderer(),
+        new FakeInvoiceNumberAllocator(), _auditLogRepository, _paymentRepository, new FakeInvoicePdfRenderer(),
         new FakeUnitOfWork(), new FakeCurrentUserContext(Guid.NewGuid()), new FakeClock(_today));
 
     private Guid SeedTenant(VatStatus vatStatus, string? vatNumber = "4123456789", string? address = "1 Acme Way, Johannesburg")
@@ -183,5 +186,64 @@ public class InvoiceServiceTests
             tenantId, Guid.NewGuid(), new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
 
         Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task IssueAsync_NoPaymentsYet_ReportsFullBalanceDue()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var invoice = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        var issued = await service.IssueAsync(
+            tenantId, invoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
+
+        Assert.Equal("0.00", issued!.AmountPaid);
+        Assert.Equal(issued.Total, issued.BalanceDue);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WithARecordedPayment_ReturnsAmountPaidAndBalanceDue()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var invoice = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+        await service.IssueAsync(
+            tenantId, invoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
+        // Total is 115.00 (100 + 15% VAT); this leaves 65.00 outstanding.
+        _paymentRepository.Seed(Payment.RecordManual(Guid.NewGuid(), tenantId, invoice.Id, Money.Zar(50m), _today));
+
+        var fetched = await service.GetByIdAsync(tenantId, invoice.Id, CancellationToken.None);
+
+        Assert.Equal("50.00", fetched!.AmountPaid);
+        Assert.Equal("65.00", fetched.BalanceDue);
+    }
+
+    [Fact]
+    public async Task ListAsync_PaymentsOnOneInvoice_DoNotLeakIntoAnothersBalance()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var paidInvoice = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+        var untouchedInvoice = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 200m, VatTreatment.Standard), CancellationToken.None);
+        await service.IssueAsync(
+            tenantId, paidInvoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
+        await service.IssueAsync(
+            tenantId, untouchedInvoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
+        _paymentRepository.Seed(Payment.RecordManual(Guid.NewGuid(), tenantId, paidInvoice.Id, Money.Zar(115m), _today));
+
+        var invoices = await service.ListAsync(tenantId, CancellationToken.None);
+
+        Assert.Equal("115.00", invoices.Single(i => i.Id == paidInvoice.Id).AmountPaid);
+        Assert.Equal("0.00", invoices.Single(i => i.Id == paidInvoice.Id).BalanceDue);
+        Assert.Equal("0.00", invoices.Single(i => i.Id == untouchedInvoice.Id).AmountPaid);
+        Assert.Equal("230.00", invoices.Single(i => i.Id == untouchedInvoice.Id).BalanceDue);
     }
 }

@@ -131,6 +131,8 @@ internal sealed class FakePaymentRepository : IPaymentRepository
 {
     private readonly List<Payment> _payments = [];
 
+    public void Seed(Payment payment) => _payments.Add(payment);
+
     public Task AddAsync(Payment payment, CancellationToken cancellationToken)
     {
         _payments.Add(payment);
@@ -141,6 +143,9 @@ internal sealed class FakePaymentRepository : IPaymentRepository
         Guid tenantId, Guid invoiceId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Payment>>(
             _payments.Where(p => p.TenantId == tenantId && p.InvoiceId == invoiceId).ToList());
+
+    public Task<IReadOnlyList<Payment>> ListByTenantIdAsync(Guid tenantId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Payment>>(_payments.Where(p => p.TenantId == tenantId).ToList());
 }
 
 internal sealed class FakeAuditLogRepository : IAuditLogRepository

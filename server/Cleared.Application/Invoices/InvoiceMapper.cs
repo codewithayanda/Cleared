@@ -6,7 +6,12 @@ namespace Cleared.Application.Invoices;
 
 internal static class InvoiceMapper
 {
-    public static InvoiceResponse ToResponse(Invoice invoice) => new(
+    // amountPaid is supplied by the caller (InvoiceService), which can see every Payment —
+    // Invoice itself has no reference back to them (same reasoning as
+    // Invoice.RecordPaymentTotal). A draft, or an invoice just issued in this same call,
+    // can never have a payment against it yet, so callers on those paths pass Money.Zero
+    // rather than querying for it.
+    public static InvoiceResponse ToResponse(Invoice invoice, Money amountPaid) => new(
         invoice.Id,
         invoice.TenantId,
         invoice.CustomerId,
@@ -20,6 +25,8 @@ internal static class InvoiceMapper
         FormatMoney(invoice.Subtotal),
         FormatMoney(invoice.VatTotal),
         FormatMoney(invoice.Total),
+        FormatMoney(amountPaid),
+        FormatMoney(invoice.Total.Subtract(amountPaid)),
         invoice.Lines
             .Select(l => new InvoiceLineResponse(
                 l.Id,

@@ -16,6 +16,7 @@ public sealed class InvoiceService(
     IVatRateRepository vatRateRepository,
     IInvoiceNumberAllocator numberAllocator,
     IAuditLogRepository auditLogRepository,
+    IPaymentRepository paymentRepository,
     IInvoicePdfRenderer pdfRenderer,
     IUnitOfWork unitOfWork,
     ICurrentUserContext currentUserContext,
@@ -45,21 +46,39 @@ public sealed class InvoiceService(
         await invoiceRepository.AddAsync(invoice, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return InvoiceMapper.ToResponse(invoice);
+        // A brand-new draft can't have a payment against it yet.
+        return InvoiceMapper.ToResponse(invoice, Money.Zero);
     }
 
     public async Task<InvoiceResponse?> GetByIdAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
     {
         var invoice = await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken);
+        if (invoice is null)
+        {
+            return null;
+        }
 
-        return invoice is null ? null : InvoiceMapper.ToResponse(invoice);
+        var amountPaid = await GetAmountPaidAsync(tenantId, invoiceId, cancellationToken);
+
+        return InvoiceMapper.ToResponse(invoice, amountPaid);
     }
 
     public async Task<IReadOnlyList<InvoiceResponse>> ListAsync(Guid tenantId, CancellationToken cancellationToken)
     {
         var invoices = await invoiceRepository.ListAsync(tenantId, cancellationToken);
 
-        return invoices.Select(InvoiceMapper.ToResponse).ToList();
+        // One query for every payment the tenant has ever made, rather than one query per
+        // invoice — the latter is exactly the N+1 this app's own bottleneck curriculum
+        // warns against, and would scale with invoice count on the app's busiest screen.
+        var payments = await paymentRepository.ListByTenantIdAsync(tenantId, cancellationToken);
+        var amountPaidByInvoiceId = payments
+            .GroupBy(p => p.InvoiceId)
+            .ToDictionary(g => g.Key, g => g.Aggregate(Money.Zero, (sum, p) => sum.Add(p.Amount)));
+
+        return invoices
+            .Select(invoice => InvoiceMapper.ToResponse(
+                invoice, amountPaidByInvoiceId.GetValueOrDefault(invoice.Id, Money.Zero)))
+            .ToList();
     }
 
     public async Task<InvoiceResponse?> IssueAsync(
@@ -106,7 +125,9 @@ public sealed class InvoiceService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return InvoiceMapper.ToResponse(invoice);
+        // Issuing is the transition out of Draft — nothing could have paid against this
+        // invoice before this call, since a payment requires an already-issued invoice.
+        return InvoiceMapper.ToResponse(invoice, Money.Zero);
     }
 
     public async Task<byte[]?> GetPdfAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
@@ -123,8 +144,18 @@ public sealed class InvoiceService(
         var customer = await customerRepository.GetByIdAsync(tenantId, invoice.CustomerId, cancellationToken)
             ?? throw new InvalidOperationException("The customer on this invoice no longer exists.");
 
+        var amountPaid = await GetAmountPaidAsync(tenantId, invoiceId, cancellationToken);
+
         return pdfRenderer.Render(
-            InvoiceMapper.ToResponse(invoice), CustomerMapper.ToResponse(customer), TenantMapper.ToResponse(tenant));
+            InvoiceMapper.ToResponse(invoice, amountPaid), CustomerMapper.ToResponse(customer),
+            TenantMapper.ToResponse(tenant));
+    }
+
+    private async Task<Money> GetAmountPaidAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
+    {
+        var payments = await paymentRepository.ListByInvoiceIdAsync(tenantId, invoiceId, cancellationToken);
+
+        return payments.Aggregate(Money.Zero, (sum, payment) => sum.Add(payment.Amount));
     }
 
     // VAT Act s20(4): every tax invoice must identify BOTH parties — supplier and

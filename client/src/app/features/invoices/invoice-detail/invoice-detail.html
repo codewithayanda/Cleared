@@ -209,6 +209,27 @@
     </div>
   </div>
 
+  @if (inv.status !== 'Draft') {
+    <div
+      class="mt-4 flex justify-end gap-8 rounded-lg border border-steel-200 bg-steel-50 px-6 py-3"
+    >
+      <div class="text-right">
+        <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Paid so far</dt>
+        <dd class="mt-1 text-sm font-medium text-steel-900">R {{ inv.amountPaid }}</dd>
+      </div>
+      <div class="text-right">
+        <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Balance due</dt>
+        <dd
+          class="mt-1 text-sm font-medium"
+          [class.text-status-paid]="inv.balanceDue === '0.00'"
+          [class.text-status-overdue]="inv.balanceDue !== '0.00'"
+        >
+          R {{ inv.balanceDue }}
+        </dd>
+      </div>
+    </div>
+  }
+
   <div class="mt-6 overflow-hidden rounded-lg border border-steel-200 bg-white shadow-sm">
     <table class="min-w-full divide-y divide-steel-100">
       <thead class="bg-steel-50">

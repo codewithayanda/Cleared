@@ -47,6 +47,8 @@ export interface Invoice {
   subtotal: string;
   vatTotal: string;
   total: string;
+  amountPaid: string;
+  balanceDue: string;
   lines: InvoiceLine[];
 }
 

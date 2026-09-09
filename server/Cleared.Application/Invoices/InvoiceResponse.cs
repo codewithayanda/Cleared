@@ -26,4 +26,6 @@ public sealed record InvoiceResponse(
     string Subtotal,
     string VatTotal,
     string Total,
+    string AmountPaid,
+    string BalanceDue,
     IReadOnlyList<InvoiceLineResponse> Lines);
