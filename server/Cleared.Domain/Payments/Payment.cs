@@ -18,6 +18,12 @@ public sealed class Payment : Entity
     public Money Amount { get; private set; }
     public DateOnly ReceivedAt { get; private set; }
 
+    // When this record was captured in Cleared — distinct from ReceivedAt, which is the
+    // date the Owner says the money actually arrived and is often entered days later off
+    // a bank statement. RecordedAt has a time component precisely because it's a system
+    // timestamp, not a business fact; never present the two as if they were the same thing.
+    public DateTimeOffset RecordedAt { get; private set; }
+
     private Payment(Guid id, Guid tenantId, Guid invoiceId, PaymentMethod method, string? reference) : base(id)
     {
         TenantId = tenantId;
@@ -27,7 +33,8 @@ public sealed class Payment : Entity
     }
 
     public static Payment RecordManual(
-        Guid id, Guid tenantId, Guid invoiceId, Money amount, DateOnly receivedAt, string? reference = null)
+        Guid id, Guid tenantId, Guid invoiceId, Money amount, DateOnly receivedAt, DateTimeOffset recordedAt,
+        string? reference = null)
     {
         if (amount.Amount <= 0)
         {
@@ -39,6 +46,7 @@ public sealed class Payment : Entity
         {
             Amount = amount,
             ReceivedAt = receivedAt,
+            RecordedAt = recordedAt,
         };
     }
 }

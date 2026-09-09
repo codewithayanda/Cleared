@@ -12,4 +12,8 @@ export class PaymentService {
   record(invoiceId: string, request: RecordPaymentRequest): Observable<Payment> {
     return this.http.post<Payment>(`${this.baseUrl}/${invoiceId}/payments`, request);
   }
+
+  list(invoiceId: string): Observable<Payment[]> {
+    return this.http.get<Payment[]>(`${this.baseUrl}/${invoiceId}/payments`);
+  }
 }

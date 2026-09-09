@@ -34,7 +34,7 @@ public sealed class PaymentService(
         invoice.RecordPaymentTotal(totalPaid);
 
         var payment = Payment.RecordManual(
-            Guid.NewGuid(), tenantId, invoiceId, amount, request.ReceivedAt, request.Reference);
+            Guid.NewGuid(), tenantId, invoiceId, amount, request.ReceivedAt, clock.UtcNow, request.Reference);
 
         await paymentRepository.AddAsync(payment, cancellationToken);
 
@@ -52,6 +52,22 @@ public sealed class PaymentService(
         return ToResponse(payment);
     }
 
+    public async Task<IReadOnlyList<PaymentResponse>?> ListAsync(
+        Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
+    {
+        var invoice = await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken);
+        if (invoice is null)
+        {
+            return null;
+        }
+
+        var payments = await paymentRepository.ListByInvoiceIdAsync(tenantId, invoiceId, cancellationToken);
+
+        // Most recent first — matches the audit log's own ordering, and is what someone
+        // reconstructing "what happened on this invoice" wants to read top-down.
+        return payments.OrderByDescending(p => p.RecordedAt).Select(ToResponse).ToList();
+    }
+
     private static PaymentResponse ToResponse(Payment payment) => new(
         payment.Id,
         payment.TenantId,
@@ -59,6 +75,7 @@ public sealed class PaymentService(
         payment.Method.ToString(),
         FormatMoney(payment.Amount),
         payment.ReceivedAt,
+        payment.RecordedAt,
         payment.Reference);
 
     private static string FormatMoney(Money money) => money.Amount.ToString("F2", CultureInfo.InvariantCulture);

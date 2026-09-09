@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -5,6 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { InvoiceService } from '@core/services/invoice.service';
 import { PaymentService } from '@core/services/payment.service';
 import { Invoice, ProblemDetails, VatTreatment } from '@core/models/invoice.model';
+import { Payment } from '@core/models/payment.model';
 import { StatusBadge } from '@shared/components/status-badge/status-badge';
 
 const VAT_TREATMENT_LABELS: Record<VatTreatment, string> = {
@@ -16,7 +18,7 @@ const VAT_TREATMENT_LABELS: Record<VatTreatment, string> = {
 
 @Component({
   selector: 'app-invoice-detail',
-  imports: [ReactiveFormsModule, RouterLink, StatusBadge],
+  imports: [ReactiveFormsModule, RouterLink, StatusBadge, DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './invoice-detail.html',
 })
@@ -28,6 +30,7 @@ export class InvoiceDetail {
 
   protected readonly invoice = signal<Invoice | null>(null);
   protected readonly loading = signal(true);
+  protected readonly payments = signal<Payment[]>([]);
   protected readonly issuing = signal(false);
   protected readonly showIssueForm = signal(false);
   protected readonly issueError = signal<string | null>(null);
@@ -75,6 +78,12 @@ export class InvoiceDetail {
       next: (invoice) => {
         this.invoice.set(invoice);
         this.loading.set(false);
+
+        // A draft can never have a payment against it — skip the call rather than show
+        // an empty payments table underneath a draft that was never eligible for one.
+        if (invoice.status !== 'Draft') {
+          this.paymentService.list(id).subscribe((payments) => this.payments.set(payments));
+        }
       },
       error: () => this.loading.set(false),
     });

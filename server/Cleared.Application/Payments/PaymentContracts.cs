@@ -5,4 +5,11 @@ namespace Cleared.Application.Payments;
 public sealed record RecordPaymentRequest(string Amount, DateOnly ReceivedAt, string? Reference);
 
 public sealed record PaymentResponse(
-    Guid Id, Guid TenantId, Guid InvoiceId, string Method, string Amount, DateOnly ReceivedAt, string? Reference);
+    Guid Id,
+    Guid TenantId,
+    Guid InvoiceId,
+    string Method,
+    string Amount,
+    DateOnly ReceivedAt,
+    DateTimeOffset RecordedAt,
+    string? Reference);

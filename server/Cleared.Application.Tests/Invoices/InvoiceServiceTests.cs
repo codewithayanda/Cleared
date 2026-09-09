@@ -215,7 +215,8 @@ public class InvoiceServiceTests
         await service.IssueAsync(
             tenantId, invoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
         // Total is 115.00 (100 + 15% VAT); this leaves 65.00 outstanding.
-        _paymentRepository.Seed(Payment.RecordManual(Guid.NewGuid(), tenantId, invoice.Id, Money.Zar(50m), _today));
+        _paymentRepository.Seed(
+            Payment.RecordManual(Guid.NewGuid(), tenantId, invoice.Id, Money.Zar(50m), _today, _now));
 
         var fetched = await service.GetByIdAsync(tenantId, invoice.Id, CancellationToken.None);
 
@@ -237,7 +238,8 @@ public class InvoiceServiceTests
             tenantId, paidInvoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
         await service.IssueAsync(
             tenantId, untouchedInvoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
-        _paymentRepository.Seed(Payment.RecordManual(Guid.NewGuid(), tenantId, paidInvoice.Id, Money.Zar(115m), _today));
+        _paymentRepository.Seed(
+            Payment.RecordManual(Guid.NewGuid(), tenantId, paidInvoice.Id, Money.Zar(115m), _today, _now));
 
         var invoices = await service.ListAsync(tenantId, CancellationToken.None);
 

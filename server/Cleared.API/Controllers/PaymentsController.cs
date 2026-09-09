@@ -20,4 +20,13 @@ public sealed class PaymentsController(PaymentService paymentService, ITenantCon
             ? NotFound()
             : Created($"/api/v1/invoices/{invoiceId}/payments/{payment.Id}", payment);
     }
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<PaymentResponse>>> List(
+        Guid invoiceId, CancellationToken cancellationToken)
+    {
+        var payments = await paymentService.ListAsync(tenantContext.TenantId, invoiceId, cancellationToken);
+
+        return payments is null ? NotFound() : Ok(payments);
+    }
 }

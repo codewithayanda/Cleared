@@ -2,6 +2,7 @@ using Cleared.Application.Payments;
 using Cleared.Application.Tests.TestDoubles;
 using Cleared.Domain.Common;
 using Cleared.Domain.Invoicing;
+using Cleared.Domain.Payments;
 
 namespace Cleared.Application.Tests.Payments;
 
@@ -119,5 +120,62 @@ public class PaymentServiceTests
         Assert.Equal(_userId, entry.UserId);
         Assert.Equal("PaymentRecorded", entry.Action);
         Assert.Equal(invoice.Id, entry.EntityId);
+    }
+
+    [Fact]
+    public async Task RecordAsync_ValidPayment_StampsRecordedAtFromTheClock()
+    {
+        var invoice = SeedIssuedInvoice();
+        var service = CreateService();
+
+        var payment = await service.RecordAsync(
+            _tenantId, invoice.Id, new RecordPaymentRequest("500.00", _receivedAt, null), CancellationToken.None);
+
+        // The clock's UtcNow, not ReceivedAt (a date the Owner typed in, often after the
+        // fact) — the two must never be conflated.
+        Assert.Equal(_receivedAt.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc), payment!.RecordedAt);
+    }
+
+    [Fact]
+    public async Task ListAsync_UnknownInvoice_ReturnsNull()
+    {
+        var service = CreateService();
+
+        var result = await service.ListAsync(_tenantId, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ListAsync_MultiplePayments_ReturnsThemMostRecentFirst()
+    {
+        var invoice = SeedIssuedInvoice();
+        var service = CreateService();
+        // Seeded directly with distinct RecordedAt values — CreateService()'s FakeClock
+        // returns a fixed instant, so recording both through RecordAsync would give them
+        // identical timestamps and prove nothing about the ordering.
+        var earlier = new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero);
+        var later = new DateTimeOffset(2026, 9, 11, 9, 0, 0, TimeSpan.Zero);
+        _paymentRepository.Seed(
+            Payment.RecordManual(Guid.NewGuid(), _tenantId, invoice.Id, Money.Zar(500m), _receivedAt, earlier, "first"));
+        _paymentRepository.Seed(
+            Payment.RecordManual(Guid.NewGuid(), _tenantId, invoice.Id, Money.Zar(650m), _receivedAt, later, "second"));
+
+        var payments = await service.ListAsync(_tenantId, invoice.Id, CancellationToken.None);
+
+        Assert.Equal(["second", "first"], payments!.Select(p => p.Reference));
+    }
+
+    [Fact]
+    public async Task ListAsync_AnotherTenantsInvoice_ReturnsNull()
+    {
+        var invoice = SeedIssuedInvoice();
+        var service = CreateService();
+        await service.RecordAsync(
+            _tenantId, invoice.Id, new RecordPaymentRequest("500.00", _receivedAt, null), CancellationToken.None);
+
+        var result = await service.ListAsync(Guid.NewGuid(), invoice.Id, CancellationToken.None);
+
+        Assert.Null(result);
     }
 }

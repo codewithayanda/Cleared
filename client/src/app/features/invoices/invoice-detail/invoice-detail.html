@@ -290,6 +290,64 @@
       </tbody>
     </table>
   </div>
+
+  @if (payments().length > 0) {
+    <div class="mt-6">
+      <h2 class="text-sm font-medium text-steel-800">Payment history</h2>
+      <div class="mt-2 overflow-hidden rounded-lg border border-steel-200 bg-white shadow-sm">
+        <table class="min-w-full divide-y divide-steel-100">
+          <thead class="bg-steel-50">
+            <tr>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+              >
+                Received
+              </th>
+              <th
+                class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-steel-500"
+              >
+                Amount
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+              >
+                Method
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+              >
+                Reference
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+              >
+                Logged
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-steel-100">
+            @for (payment of payments(); track payment.id) {
+              <tr>
+                <td class="px-4 py-3 text-sm text-steel-900">{{ payment.receivedAt }}</td>
+                <td class="px-4 py-3 text-right text-sm font-medium text-steel-900">
+                  R {{ payment.amount }}
+                </td>
+                <td class="px-4 py-3 text-sm text-steel-600">{{ payment.method }}</td>
+                <td class="px-4 py-3 text-sm text-steel-600">{{ payment.reference || '—' }}</td>
+                <td class="px-4 py-3 text-sm text-steel-500">
+                  {{ payment.recordedAt | date: 'medium' }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-2 text-xs text-steel-500">
+        "Received" is the date you recorded as when the money arrived. "Logged" is when it was
+        captured in Cleared — the two can differ if you enter a payment after the fact.
+      </p>
+    </div>
+  }
 } @else {
   <p class="text-sm text-status-overdue">This invoice couldn't be found.</p>
 }
