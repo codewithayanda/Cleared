@@ -221,7 +221,13 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
             });
         });
 
-        return document.GeneratePdf();
+        // Embedded in the PDF itself rather than left to the client — a blob: URL built
+        // from a fetched byte array carries no filename or Content-Disposition of its own,
+        // so this is what most browsers fall back to when the Owner saves the file, on
+        // both the inline view and a direct download.
+        return document
+            .WithMetadata(new DocumentMetadata { Title = invoice.Number ?? title })
+            .GeneratePdf();
     }
 
     private static void MetaRow(ColumnDescriptor details, string label, string value) =>
