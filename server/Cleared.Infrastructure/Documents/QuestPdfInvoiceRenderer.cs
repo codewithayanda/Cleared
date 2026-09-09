@@ -34,6 +34,11 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
                         column.Item().Text($"t/a {tradingName}");
                     }
 
+                    if (tenant.Address is { } tenantAddress)
+                    {
+                        column.Item().Text(tenantAddress);
+                    }
+
                     if (tenant.VatNumber is { } tenantVatNumber)
                     {
                         column.Item().Text($"VAT no: {tenantVatNumber}");
@@ -112,6 +117,37 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
                         totals.Item().Text($"VAT: R {invoice.VatTotal}");
                         totals.Item().PaddingTop(5).Text($"Total: R {invoice.Total}").FontSize(14).Bold();
                     });
+
+                    // Not required to issue an invoice at all (see Tenant.BankName's own
+                    // note) — but without it, there's a total on this page and no way for
+                    // whoever's reading it to actually pay it by EFT.
+                    if (tenant.BankName is not null || tenant.BankAccountNumber is not null
+                        || tenant.BankBranchCode is not null)
+                    {
+                        column.Item().PaddingTop(10).BorderTop(1).PaddingTop(10).Column(banking =>
+                        {
+                            banking.Item().Text("Banking details").Bold();
+                            if (tenant.BankName is { } bankName)
+                            {
+                                banking.Item().Text($"Bank: {bankName}");
+                            }
+
+                            if (tenant.BankAccountNumber is { } accountNumber)
+                            {
+                                banking.Item().Text($"Account number: {accountNumber}");
+                            }
+
+                            if (tenant.BankBranchCode is { } branchCode)
+                            {
+                                banking.Item().Text($"Branch code: {branchCode}");
+                            }
+
+                            if (invoice.Number is { } reference)
+                            {
+                                banking.Item().Text($"Payment reference: {reference}");
+                            }
+                        });
+                    }
                 });
 
                 page.Footer().AlignCenter().Text(text =>

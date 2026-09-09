@@ -9,6 +9,21 @@ public sealed class Tenant : Entity
     public string? VatNumber { get; private set; }
     public VatStatus VatStatus { get; private set; }
 
+    // Required on a tax invoice's supplier details (VAT Act s20(4)) — same requirement,
+    // same free-text reasoning, as Customer.Address. Nullable because it isn't known at
+    // sign-up; enforced later, at Issue(), only when it's actually needed.
+    public string? Address { get; private set; }
+
+    // Free text rather than separate structured fields (routing number, SWIFT, etc.) —
+    // South African EFT only needs these three to be identifiable to a paying customer,
+    // and nothing here parses or validates them against an actual bank. Not required to
+    // register or to issue: unlike Address, there's no legal requirement forcing this: a
+    // tenant that hasn't filled it in yet can still legally issue invoices, they just
+    // can't usefully get paid by EFT until they do.
+    public string? BankName { get; private set; }
+    public string? BankAccountNumber { get; private set; }
+    public string? BankBranchCode { get; private set; }
+
     // Not a constructor parameter — see the note on InvoiceLineItem.UnitPrice for the
     // general shape of this issue. DateTimeOffset specifically was rejected by EF Core's
     // constructor-binding here in a way Guid/string/enum parameters were not; moving it to
@@ -35,7 +50,11 @@ public sealed class Tenant : Entity
         VatStatus vatStatus,
         string? vatNumber,
         DateTimeOffset createdAt,
-        string? tradingName = null)
+        string? tradingName = null,
+        string? address = null,
+        string? bankName = null,
+        string? bankAccountNumber = null,
+        string? bankBranchCode = null)
     {
         if (string.IsNullOrWhiteSpace(companyName))
         {
@@ -57,6 +76,10 @@ public sealed class Tenant : Entity
         return new Tenant(id, companyName, tradingName, vatStatus, vatNumber)
         {
             CreatedAt = createdAt,
+            Address = address,
+            BankName = bankName,
+            BankAccountNumber = bankAccountNumber,
+            BankBranchCode = bankBranchCode,
         };
     }
 
@@ -88,5 +111,16 @@ public sealed class Tenant : Entity
 
         CompanyName = companyName;
         TradingName = tradingName;
+    }
+
+    // Deliberately separate from Rename/RegisterForVat: this is the "company profile"
+    // settings screen updating contact and payment details, not the legally-sensitive
+    // identity fields those two touch.
+    public void UpdateProfile(string? address, string? bankName, string? bankAccountNumber, string? bankBranchCode)
+    {
+        Address = address;
+        BankName = bankName;
+        BankAccountNumber = bankAccountNumber;
+        BankBranchCode = bankBranchCode;
     }
 }

@@ -23,5 +23,17 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.VatStatus)
             .HasConversion<string>()
             .HasMaxLength(20);
+
+        builder.Property(t => t.Address)
+            .HasMaxLength(500);
+
+        builder.Property(t => t.BankName)
+            .HasMaxLength(100);
+
+        builder.Property(t => t.BankAccountNumber)
+            .HasMaxLength(50);
+
+        builder.Property(t => t.BankBranchCode)
+            .HasMaxLength(20);
     }
 }

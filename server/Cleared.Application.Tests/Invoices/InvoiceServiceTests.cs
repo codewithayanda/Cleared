@@ -20,9 +20,9 @@ public class InvoiceServiceTests
         new FakeInvoiceNumberAllocator(), _auditLogRepository, new FakeInvoicePdfRenderer(),
         new FakeUnitOfWork(), new FakeCurrentUserContext(Guid.NewGuid()), new FakeClock(_today));
 
-    private Guid SeedTenant(VatStatus vatStatus, string? vatNumber = "4123456789")
+    private Guid SeedTenant(VatStatus vatStatus, string? vatNumber = "4123456789", string? address = "1 Acme Way, Johannesburg")
     {
-        var tenant = Tenant.Register(Guid.NewGuid(), "Acme Ltd", vatStatus, vatNumber, _now);
+        var tenant = Tenant.Register(Guid.NewGuid(), "Acme Ltd", vatStatus, vatNumber, _now, address: address);
         _tenantRepository.Seed(tenant);
         return tenant.Id;
     }
@@ -61,6 +61,21 @@ public class InvoiceServiceTests
             tenantId, RequestFor(customerId, 100m, VatTreatment.ZeroRated), CancellationToken.None);
 
         Assert.Equal(nameof(VatTreatment.ZeroRated), response.Lines[0].VatTreatment);
+    }
+
+    [Fact]
+    public async Task IssueAsync_RegisteredTenantMissingOwnAddress_ThrowsWithFieldNamed()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered, address: null);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var invoice = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<TaxInvoiceValidationException>(() =>
+            service.IssueAsync(tenantId, invoice.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None));
+
+        Assert.Contains(exception.MissingFields, field => field.Contains("company address"));
     }
 
     [Fact]

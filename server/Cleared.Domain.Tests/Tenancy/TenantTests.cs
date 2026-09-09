@@ -81,4 +81,55 @@ public class TenantTests
         Assert.Equal("Acme Holdings (Pty) Ltd", tenant.CompanyName);
         Assert.Equal("Acme", tenant.TradingName);
     }
+
+    [Fact]
+    public void Register_NoProfileDetails_LeavesThemNull()
+    {
+        var tenant = Tenant.Register(Guid.NewGuid(), "Acme (Pty) Ltd", VatStatus.NotRegistered, null, Now);
+
+        Assert.Null(tenant.Address);
+        Assert.Null(tenant.BankName);
+        Assert.Null(tenant.BankAccountNumber);
+        Assert.Null(tenant.BankBranchCode);
+    }
+
+    [Fact]
+    public void Register_WithProfileDetails_SetsThem()
+    {
+        var tenant = Tenant.Register(
+            Guid.NewGuid(), "Acme (Pty) Ltd", VatStatus.NotRegistered, null, Now,
+            address: "1 Main Road, Cape Town", bankName: "Standard Bank",
+            bankAccountNumber: "123456789", bankBranchCode: "051001");
+
+        Assert.Equal("1 Main Road, Cape Town", tenant.Address);
+        Assert.Equal("Standard Bank", tenant.BankName);
+        Assert.Equal("123456789", tenant.BankAccountNumber);
+        Assert.Equal("051001", tenant.BankBranchCode);
+    }
+
+    [Fact]
+    public void UpdateProfile_SetsAddressAndBankingDetails()
+    {
+        var tenant = Tenant.Register(Guid.NewGuid(), "Acme (Pty) Ltd", VatStatus.NotRegistered, null, Now);
+
+        tenant.UpdateProfile("1 Main Road, Cape Town", "FNB", "987654321", "250655");
+
+        Assert.Equal("1 Main Road, Cape Town", tenant.Address);
+        Assert.Equal("FNB", tenant.BankName);
+        Assert.Equal("987654321", tenant.BankAccountNumber);
+        Assert.Equal("250655", tenant.BankBranchCode);
+    }
+
+    [Fact]
+    public void UpdateProfile_WithNulls_ClearsExistingDetails()
+    {
+        var tenant = Tenant.Register(
+            Guid.NewGuid(), "Acme (Pty) Ltd", VatStatus.NotRegistered, null, Now,
+            address: "1 Main Road", bankName: "FNB", bankAccountNumber: "123", bankBranchCode: "250655");
+
+        tenant.UpdateProfile(null, null, null, null);
+
+        Assert.Null(tenant.Address);
+        Assert.Null(tenant.BankName);
+    }
 }

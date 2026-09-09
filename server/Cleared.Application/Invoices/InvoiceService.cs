@@ -88,7 +88,7 @@ public sealed class InvoiceService(
 
             // Must run — and can fail — before Issue() below mutates anything, so a
             // rejected tax invoice leaves the draft untouched and nothing is persisted.
-            ValidateTaxInvoiceFields(customer, invoice.ProspectiveTotal(vatRate.Rate));
+            ValidateTaxInvoiceFields(tenant, customer, invoice.ProspectiveTotal(vatRate.Rate));
         }
 
         // Claiming the number and saving the issued invoice must succeed or fail together —
@@ -127,12 +127,20 @@ public sealed class InvoiceService(
             InvoiceMapper.ToResponse(invoice), CustomerMapper.ToResponse(customer), TenantMapper.ToResponse(tenant));
     }
 
-    // VAT Act s20(4): every tax invoice must identify its recipient by name and address;
-    // at or above R5,000 it must also carry the recipient's own VAT number (an "abridged"
-    // tax invoice below that threshold may omit it).
-    private static void ValidateTaxInvoiceFields(Customer customer, Money prospectiveTotal)
+    // VAT Act s20(4): every tax invoice must identify BOTH parties — supplier and
+    // recipient — by name and address; at or above R5,000 it must also carry the
+    // recipient's own VAT number (an "abridged" tax invoice below that threshold may
+    // omit it). The supplier's own VAT number is already guaranteed by
+    // Tenant.Register/RegisterForVat, which refuse a Registered tenant with no VAT
+    // number — there's nothing left to check for that one here.
+    private static void ValidateTaxInvoiceFields(Tenant tenant, Customer customer, Money prospectiveTotal)
     {
         var missingFields = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(tenant.Address))
+        {
+            missingFields.Add("your company address (in company settings)");
+        }
 
         if (string.IsNullOrWhiteSpace(customer.Name))
         {
