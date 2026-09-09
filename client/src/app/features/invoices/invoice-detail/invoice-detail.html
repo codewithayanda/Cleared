@@ -19,16 +19,106 @@
       </div>
     </div>
 
-    @if (inv.status === 'Draft' && !showIssueForm()) {
-      <button
-        type="button"
-        (click)="showIssueForm.set(true)"
-        class="rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700"
-      >
-        Issue invoice
-      </button>
-    }
+    <div class="flex items-center gap-3">
+      @if (inv.status !== 'Draft') {
+        <button
+          type="button"
+          (click)="viewPdf()"
+          [disabled]="downloadingPdf()"
+          class="rounded-md border border-steel-300 bg-white px-4 py-2 text-sm font-medium text-steel-700 shadow-sm transition-colors hover:bg-steel-50 disabled:opacity-60"
+        >
+          {{ downloadingPdf() ? 'Preparing…' : 'View PDF' }}
+        </button>
+      }
+      @if (canRecordPayment() && !showPaymentForm()) {
+        <button
+          type="button"
+          (click)="showPaymentForm.set(true)"
+          class="rounded-md border border-steel-300 bg-white px-4 py-2 text-sm font-medium text-steel-700 shadow-sm transition-colors hover:bg-steel-50"
+        >
+          Record payment
+        </button>
+      }
+      @if (inv.status === 'Draft' && !showIssueForm()) {
+        <button
+          type="button"
+          (click)="showIssueForm.set(true)"
+          class="rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700"
+        >
+          Issue invoice
+        </button>
+      }
+    </div>
   </div>
+
+  @if (showPaymentForm()) {
+    <div class="mb-6 rounded-lg border border-steel-300 bg-steel-50 p-5">
+      <h2 class="text-sm font-medium text-steel-800">Record a payment</h2>
+      <p class="mt-1 text-xs text-steel-600">
+        Log an EFT or other payment you've already received against this invoice.
+      </p>
+
+      <form
+        [formGroup]="paymentForm"
+        (ngSubmit)="confirmPayment()"
+        class="mt-4 flex flex-wrap items-end gap-4"
+      >
+        <div>
+          <label for="amount" class="block text-xs font-medium text-steel-700">Amount (R)</label>
+          <input
+            id="amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            formControlName="amount"
+            class="mt-1 w-32 rounded-md border border-steel-200 px-3 py-1.5 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+          />
+        </div>
+        <div>
+          <label for="receivedAt" class="block text-xs font-medium text-steel-700"
+            >Date received</label
+          >
+          <input
+            id="receivedAt"
+            type="date"
+            formControlName="receivedAt"
+            class="mt-1 rounded-md border border-steel-200 px-3 py-1.5 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+          />
+        </div>
+        <div>
+          <label for="reference" class="block text-xs font-medium text-steel-700"
+            >Reference (optional)</label
+          >
+          <input
+            id="reference"
+            type="text"
+            formControlName="reference"
+            class="mt-1 rounded-md border border-steel-200 px-3 py-1.5 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+          />
+        </div>
+        <button
+          type="submit"
+          [disabled]="recordingPayment() || paymentForm.invalid"
+          class="rounded-md bg-steel-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-steel-800 disabled:opacity-60"
+        >
+          {{ recordingPayment() ? 'Recording…' : 'Confirm' }}
+        </button>
+        <button
+          type="button"
+          (click)="showPaymentForm.set(false)"
+          class="text-sm font-medium text-steel-500 hover:text-steel-700"
+        >
+          Cancel
+        </button>
+      </form>
+
+      @if (paymentError()) {
+        <div class="mt-4 rounded-md border border-status-overdue/30 bg-white p-3">
+          <p class="text-sm font-medium text-status-overdue">{{ paymentError() }}</p>
+        </div>
+      }
+    </div>
+  }
 
   @if (showIssueForm()) {
     <div class="mb-6 rounded-lg border border-gold-400 bg-gold-100 p-5">

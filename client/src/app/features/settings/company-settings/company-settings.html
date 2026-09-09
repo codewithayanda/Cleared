@@ -1,0 +1,108 @@
+<div class="mb-6">
+  <h1 class="text-2xl font-medium text-steel-900">Company settings</h1>
+  <p class="mt-1 text-sm text-steel-500">
+    These details appear on every tax invoice and credit note you issue.
+  </p>
+</div>
+
+@if (loading()) {
+  <p class="text-sm text-steel-500">Loading…</p>
+} @else {
+  <div class="max-w-lg space-y-6">
+    <div class="rounded-lg border border-steel-200 bg-white p-6 shadow-sm">
+      <dl class="grid grid-cols-2 gap-4">
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">Company name</dt>
+          <dd class="mt-1 text-sm text-steel-900">{{ companyName() }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">VAT status</dt>
+          <dd class="mt-1 text-sm text-steel-900">
+            {{ vatStatus() === 'Registered' ? 'Registered' : 'Not registered' }}
+          </dd>
+        </div>
+        @if (vatNumber()) {
+          <div>
+            <dt class="text-xs font-medium uppercase tracking-wide text-steel-500">VAT number</dt>
+            <dd class="mt-1 text-sm text-steel-900">{{ vatNumber() }}</dd>
+          </div>
+        }
+      </dl>
+    </div>
+
+    <form
+      [formGroup]="form"
+      (ngSubmit)="submit()"
+      class="space-y-4 rounded-lg border border-steel-200 bg-white p-6 shadow-sm"
+    >
+      <div>
+        <label for="address" class="block text-sm font-medium text-steel-700"
+          >Business address</label
+        >
+        <textarea
+          id="address"
+          rows="2"
+          formControlName="address"
+          class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+        ></textarea>
+        <p class="mt-1 text-xs text-steel-500">
+          Required to issue a tax invoice — issuing will be blocked until it's on file.
+        </p>
+      </div>
+
+      <div class="border-t border-steel-100 pt-4">
+        <h2 class="text-sm font-medium text-steel-800">Banking details</h2>
+        <p class="mt-1 text-xs text-steel-500">
+          Shown on invoices so customers know where to send an EFT payment.
+        </p>
+
+        <div class="mt-3 grid grid-cols-2 gap-4">
+          <div class="col-span-2">
+            <label for="bankName" class="block text-sm font-medium text-steel-700">Bank name</label>
+            <input
+              id="bankName"
+              type="text"
+              formControlName="bankName"
+              class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+            />
+          </div>
+          <div>
+            <label for="bankAccountNumber" class="block text-sm font-medium text-steel-700"
+              >Account number</label
+            >
+            <input
+              id="bankAccountNumber"
+              type="text"
+              formControlName="bankAccountNumber"
+              class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+            />
+          </div>
+          <div>
+            <label for="bankBranchCode" class="block text-sm font-medium text-steel-700"
+              >Branch code</label
+            >
+            <input
+              id="bankBranchCode"
+              type="text"
+              formControlName="bankBranchCode"
+              class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          [disabled]="saving()"
+          class="rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700 disabled:opacity-60"
+        >
+          {{ saving() ? 'Saving…' : 'Save changes' }}
+        </button>
+        @if (saved()) {
+          <span class="text-sm font-medium text-status-paid">Saved.</span>
+        }
+      </div>
+    </form>
+  </div>
+}

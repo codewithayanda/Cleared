@@ -7,14 +7,6 @@ export interface RegisterTenantRequest {
   tradingName: string | null;
 }
 
-export interface TenantResponse {
-  id: string;
-  companyName: string;
-  tradingName: string | null;
-  vatStatus: VatStatus;
-  vatNumber: string | null;
-}
-
 export interface RegisterUserRequest {
   tenantId: string;
   email: string;

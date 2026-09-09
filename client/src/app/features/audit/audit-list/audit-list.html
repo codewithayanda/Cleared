@@ -1,0 +1,54 @@
+<div class="mb-6">
+  <h1 class="text-2xl font-medium text-steel-900">Audit log</h1>
+  <p class="mt-1 text-sm text-steel-500">Every change made in your account, in order.</p>
+</div>
+
+@if (loading()) {
+  <p class="text-sm text-steel-500">Loading…</p>
+} @else if (entries().length === 0) {
+  <app-empty-state
+    title="Nothing recorded yet"
+    description="Actions like issuing invoices and recording payments will show up here."
+  />
+} @else {
+  <div class="overflow-hidden rounded-lg border border-steel-200 bg-white shadow-sm">
+    <table class="min-w-full divide-y divide-steel-100">
+      <thead class="bg-steel-50">
+        <tr>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            When
+          </th>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Action
+          </th>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Entity
+          </th>
+          <th
+            class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-steel-500"
+          >
+            Details
+          </th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-steel-100">
+        @for (entry of entries(); track entry.id) {
+          <tr>
+            <td class="whitespace-nowrap px-4 py-3 text-sm text-steel-600">
+              {{ entry.occurredAt | date: 'medium' }}
+            </td>
+            <td class="px-4 py-3 text-sm font-medium text-steel-900">{{ entry.action }}</td>
+            <td class="px-4 py-3 text-sm text-steel-600">{{ entry.entityType }}</td>
+            <td class="px-4 py-3 text-sm text-steel-500">{{ entry.details || '—' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

@@ -46,6 +46,18 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/invoices/invoice-detail/invoice-detail').then((m) => m.InvoiceDetail),
       },
+      {
+        path: 'audit',
+        loadComponent: () =>
+          import('./features/audit/audit-list/audit-list').then((m) => m.AuditList),
+      },
+      {
+        path: 'settings/company',
+        loadComponent: () =>
+          import('./features/settings/company-settings/company-settings').then(
+            (m) => m.CompanySettings,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'login' },

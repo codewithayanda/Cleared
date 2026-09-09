@@ -8,8 +8,8 @@ import {
   LoginRequest,
   RegisterTenantRequest,
   RegisterUserRequest,
-  TenantResponse,
 } from '@core/models/auth.model';
+import { TenantResponse } from '@core/models/tenant.model';
 
 interface DecodedClaims {
   sub: string;
