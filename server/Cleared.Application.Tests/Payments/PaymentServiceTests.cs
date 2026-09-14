@@ -131,8 +131,7 @@ public class PaymentServiceTests
         var payment = await service.RecordAsync(
             _tenantId, invoice.Id, new RecordPaymentRequest("500.00", _receivedAt, null), CancellationToken.None);
 
-        // The clock's UtcNow, not ReceivedAt (a date the Owner typed in, often after the
-        // fact) — the two must never be conflated.
+        // The clock's UtcNow, not ReceivedAt, which is a date the Owner typed in.
         Assert.Equal(_receivedAt.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc), payment!.RecordedAt);
     }
 
@@ -151,9 +150,8 @@ public class PaymentServiceTests
     {
         var invoice = SeedIssuedInvoice();
         var service = CreateService();
-        // Seeded directly with distinct RecordedAt values — CreateService()'s FakeClock
-        // returns a fixed instant, so recording both through RecordAsync would give them
-        // identical timestamps and prove nothing about the ordering.
+        // Seeded with distinct RecordedAt values because CreateService()'s FakeClock returns
+        // a fixed instant, so recording both through RecordAsync would tie the timestamps.
         var earlier = new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero);
         var later = new DateTimeOffset(2026, 9, 11, 9, 0, 0, TimeSpan.Zero);
         _paymentRepository.Seed(

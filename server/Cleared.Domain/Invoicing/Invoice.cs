@@ -13,23 +13,20 @@ public sealed class Invoice : Entity
     public DocumentType? DocumentType { get; private set; }
     public DateOnly? IssueDate { get; private set; }
 
-    // The date the goods/services were actually supplied — usually the same day as
-    // IssueDate, but not always (e.g. invoicing in arrears). This is the date the
-    // applicable VAT rate is looked up against, not IssueDate: invoice in June for a
-    // supply made before an April rate change, and the April rate applies.
+    // The date the goods or services were supplied, usually but not always the same day as
+    // IssueDate (e.g. invoicing in arrears). The VAT rate is looked up against this date,
+    // not IssueDate: invoice in June for a supply before an April rate change, April applies.
     public DateOnly? SupplyDate { get; private set; }
 
     public DateOnly? DueDate { get; private set; }
 
-    // Snapshotted at Issue() and never re-read afterwards — see VatRate.
+    // Snapshotted at Issue() and never re-read afterwards. See VatRate.
     public decimal? VatRateApplied { get; private set; }
 
     public IReadOnlyList<InvoiceLineItem> Lines => _lines;
 
-    // Subtotal/VatTotal/Total are computed from the lines rather than stored. That's safe
-    // even for an issued invoice: AddLine/RemoveLine already refuse to run once Status is
-    // no longer Draft, so the lines a issued invoice carries are frozen the moment it's
-    // issued — a computed total over frozen inputs can never drift from what was issued.
+    // Computed from the lines, not stored. Safe once issued because AddLine/RemoveLine
+    // reject anything past Draft, so the inputs are frozen at issue.
     public Money Subtotal =>
         _lines.Aggregate(Money.Zero, (runningTotal, line) => runningTotal.Add(line.LineSubtotal));
 
@@ -38,10 +35,9 @@ public sealed class Invoice : Entity
 
     public Money Total => Subtotal.Add(VatTotal);
 
-    // What Total would be if issued at the given rate, without mutating anything. Needed
-    // because tax-invoice field validation (which needs the total, for the R5,000
-    // abridged-vs-full threshold) must run — and can fail — before Issue() commits to a
-    // rate and a status change, not after.
+    // What Total would be at the given rate, without mutating anything. Tax-invoice field
+    // validation needs the total for the R5,000 threshold and can fail, so it has to run
+    // before Issue() commits to a rate and a status change.
     public Money ProspectiveTotal(decimal vatRate)
     {
         var vatTotal = _lines.Aggregate(Money.Zero, (runningTotal, line) => runningTotal.Add(line.PreviewVat(vatRate)));
@@ -98,12 +94,9 @@ public sealed class Invoice : Entity
         _lines.Remove(line);
     }
 
-    // documentType and vatRate are supplied by the caller (Application layer) rather than
-    // derived here: DocumentType depends on the tenant's VatStatus and vatRate on a
-    // VatRate lookup, and Invoice has no way to reach either of those — it only knows
-    // about itself and its own lines, not the tenant or reference data.  Tax-invoice field
-    // validation against the customer (name/address/VAT number) happens one level up for
-    // the same reason: Invoice cannot see the Customer aggregate.
+    // documentType and vatRate come from the caller (Application layer): DocumentType
+    // depends on the tenant's VatStatus and vatRate on a VatRate lookup, neither of which
+    // Invoice can reach. Tax-invoice validation against the Customer is one level up too.
     public void Issue(
         string number,
         DateOnly issueDate,
@@ -146,14 +139,10 @@ public sealed class Invoice : Entity
         Status = InvoiceStatus.Issued;
     }
 
-    // A tax invoice can never be edited or deleted once issued — the only lawful
-    // correction is a credit note (see CreditNote). Whether a given credit note fully
-    // covers this invoice (and so should cancel it) or only partially credits it is a
-    // cross-aggregate question CreditNoteService answers before calling this. Reachable
-    // from PartiallyPaid and Paid too, not just Issued: a customer can pay first and need
-    // a credit later. Crediting a Paid invoice implies money is now owed back — this only
-    // flips the status; it does not itself move any money, which is a real, deliberate
-    // gap until there's a way to actually send a refund.
+    // An issued tax invoice cannot be edited or deleted; the only lawful correction is a
+    // credit note. CreditNoteService decides whether a note fully covers the invoice before
+    // calling this. Reachable from Paid: a customer can pay first and need a credit later.
+    // TODO: crediting a Paid invoice flips the status but moves no money. No refund path yet.
     public void Cancel()
     {
         if (Status is not (InvoiceStatus.Issued or InvoiceStatus.PartiallyPaid or InvoiceStatus.Paid))
@@ -165,10 +154,8 @@ public sealed class Invoice : Entity
         Status = InvoiceStatus.Cancelled;
     }
 
-    // totalPaid is the sum of every succeeded payment against this invoice, including
-    // whichever one triggered this call — computed by the caller (PaymentService), which
-    // can see every Payment; Invoice itself has no reference back to them (same reasoning
-    // as CreditNote — see Issue()'s note on cross-aggregate data).
+    // totalPaid is the sum of every payment against this invoice, including the one that
+    // triggered this call. PaymentService computes it; Invoice holds no reference to Payment.
     public void RecordPaymentTotal(Money totalPaid)
     {
         if (Status is not (InvoiceStatus.Issued or InvoiceStatus.PartiallyPaid))

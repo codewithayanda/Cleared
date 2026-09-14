@@ -1,9 +1,8 @@
 @import 'tailwindcss';
 
-/* Cleared — metallic/steel theme. A brushed-steel chrome (sidebar, headers) with a warm
-   gold accent for primary actions, on a light content surface so financial figures stay
-   high-contrast and readable. Loosely inspired by SARS's official/institutional tone,
-   translated into a metallic palette rather than SARS's own blue. */
+/* Metallic/steel theme: brushed-steel chrome (sidebar, headers), a warm gold accent for
+   primary actions, on a light content surface so figures stay high-contrast. Institutional
+   in tone, but a metallic palette rather than SARS's blue. */
 @theme {
   --color-steel-950: #12151a;
   --color-steel-900: #1a1f26;

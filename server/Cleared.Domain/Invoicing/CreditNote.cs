@@ -2,14 +2,12 @@ using Cleared.Domain.Common;
 
 namespace Cleared.Domain.Invoicing;
 
-// Unlike Invoice, a credit note has no draft phase: it's created complete, in one step,
-// from a single confirmed action. There's nothing to incrementally edit — a correction
-// document either states the correction or it doesn't exist yet.
+// No draft phase, unlike Invoice: a credit note is created complete, in one step, from a
+// single confirmed action. There is nothing to edit incrementally.
 public sealed class CreditNote : Entity
 {
-    // Inline-initialized rather than a constructor parameter, and populated by Create()
-    // below rather than passed in directly — same reason as Invoice._lines: EF Core's
-    // constructor-binding materialization cannot bind a navigation collection.
+    // Populated by Create(), not bound by the constructor: EF Core's constructor binding
+    // cannot bind a navigation collection. Same as Invoice._lines.
     private readonly List<CreditNoteLineItem> _lines = [];
 
     public Guid TenantId { get; }
@@ -17,8 +15,8 @@ public sealed class CreditNote : Entity
     public string Number { get; }
     public string Reason { get; }
 
-    // Not a constructor parameter — see the note on Tenant.CreatedAt / InvoiceLineItem.UnitPrice.
-    // DateOnly hits the same EF Core constructor-binding limitation there, not just DateTimeOffset.
+    // Private setter, not a constructor parameter. DateOnly hits the same EF Core
+    // constructor-binding limit as DateTimeOffset. See InvoiceLineItem.UnitPrice.
     public DateOnly IssueDate { get; private set; }
 
     public IReadOnlyList<CreditNoteLineItem> Lines => _lines;
@@ -39,11 +37,9 @@ public sealed class CreditNote : Entity
         Reason = reason;
     }
 
-    // vatRate is the rate the original invoice snapshotted at its own Issue() — see the
-    // note on CreditNoteLineItem.Create. number comes from the same claim-under-a-locked-
-    // row mechanism as invoice numbers (see CreditNoteNumberAllocator), allocated by the
-    // caller before this factory runs, since there's no draft phase in which to assign it
-    // later the way Invoice does.
+    // vatRate is the rate the original invoice snapshotted at Issue(). number is allocated
+    // by the caller before this runs (see CreditNoteNumberAllocator), since there is no
+    // draft phase in which to assign it later.
     public static CreditNote Create(
         Guid id,
         Guid tenantId,

@@ -34,8 +34,8 @@ public sealed class InvoiceService(
         {
             var unitPrice = Money.Zar(decimal.Parse(line.UnitPrice, CultureInfo.InvariantCulture));
 
-            // A tenant that isn't VAT registered cannot charge output VAT on anything, by
-            // law — that overrides whatever treatment the client requested.
+            // A tenant that is not VAT registered cannot charge output VAT, which overrides
+            // whatever treatment the client requested.
             var vatTreatment = tenant.VatStatus == VatStatus.NotRegistered
                 ? VatTreatment.NotApplicable
                 : line.VatTreatment;
@@ -67,9 +67,10 @@ public sealed class InvoiceService(
     {
         var invoices = await invoiceRepository.ListAsync(tenantId, cancellationToken);
 
-        // One query for every payment the tenant has ever made, rather than one query per
-        // invoice — the latter is exactly the N+1 this app's own bottleneck curriculum
-        // warns against, and would scale with invoice count on the app's busiest screen.
+        // One query for the tenant's payments rather than one per invoice, which would be
+        // an N+1 on the busiest screen in the app.
+        // TODO: unbounded. Neither this nor the invoice list is paginated, so both grow
+        // with tenant age. Move the sum into a GROUP BY over one page of invoice ids.
         var payments = await paymentRepository.ListByTenantIdAsync(tenantId, cancellationToken);
         var amountPaidByInvoiceId = payments
             .GroupBy(p => p.InvoiceId)
@@ -105,13 +106,13 @@ public sealed class InvoiceService(
             var customer = await customerRepository.GetByIdAsync(tenantId, invoice.CustomerId, cancellationToken)
                 ?? throw new InvalidOperationException("The customer on this invoice no longer exists.");
 
-            // Must run — and can fail — before Issue() below mutates anything, so a
-            // rejected tax invoice leaves the draft untouched and nothing is persisted.
+            // Runs before Issue() mutates anything, so a rejected tax invoice leaves the
+            // draft untouched and nothing is persisted.
             ValidateTaxInvoiceFields(tenant, customer, invoice.ProspectiveTotal(vatRate.Rate));
         }
 
-        // Claiming the number and saving the issued invoice must succeed or fail together —
-        // otherwise a save failure after the number is claimed leaves a permanent gap.
+        // Claiming the number and saving the invoice must succeed or fail together, or a
+        // save failure after the claim leaves a permanent gap in the sequence.
         await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         var number = await numberAllocator.AllocateAsync(tenantId, request.IssueDate.Year, cancellationToken);
@@ -125,8 +126,8 @@ public sealed class InvoiceService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        // Issuing is the transition out of Draft — nothing could have paid against this
-        // invoice before this call, since a payment requires an already-issued invoice.
+        // Issuing is the transition out of Draft, and a payment requires an issued invoice,
+        // so nothing can have paid against this one yet.
         return InvoiceMapper.ToResponse(invoice, Money.Zero);
     }
 
@@ -158,12 +159,9 @@ public sealed class InvoiceService(
         return payments.Aggregate(Money.Zero, (sum, payment) => sum.Add(payment.Amount));
     }
 
-    // VAT Act s20(4): every tax invoice must identify BOTH parties — supplier and
-    // recipient — by name and address; at or above R5,000 it must also carry the
-    // recipient's own VAT number (an "abridged" tax invoice below that threshold may
-    // omit it). The supplier's own VAT number is already guaranteed by
-    // Tenant.Register/RegisterForVat, which refuse a Registered tenant with no VAT
-    // number — there's nothing left to check for that one here.
+    // VAT Act s20(4): a tax invoice must identify both supplier and recipient by name and
+    // address, and at or above R5,000 must carry the recipient's VAT number. The supplier's
+    // own VAT number is already guaranteed by Tenant.Register and RegisterForVat.
     private static void ValidateTaxInvoiceFields(Tenant tenant, Customer customer, Money prospectiveTotal)
     {
         var missingFields = new List<string>();

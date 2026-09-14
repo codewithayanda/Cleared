@@ -50,7 +50,7 @@ public class InvoiceTests
     {
         var invoice = NewDraft();
 
-        invoice.AddLine(Guid.NewGuid(), "Consulting — August", 10m, Money.Zar(150m), VatTreatment.Standard);
+        invoice.AddLine(Guid.NewGuid(), "Consulting, August", 10m, Money.Zar(150m), VatTreatment.Standard);
 
         Assert.Single(invoice.Lines);
         Assert.Equal(Money.Zar(1500m), invoice.Subtotal);
@@ -271,8 +271,7 @@ public class InvoiceTests
     public void Issue_RoundsVatPerLineThenSums_NotOnTheGrandTotal()
     {
         // Two lines whose per-line VAT each rounds to a different cent than rounding the
-        // combined subtotal once would — proves rounding happens per line (ADR 0006),
-        // not by applying the rate to Subtotal as a whole.
+        // combined subtotal once would, so this fails if rounding moves to Subtotal.
         var invoice = NewDraft();
         invoice.AddLine(Guid.NewGuid(), "Line A", 1m, Money.Zar(10.01m), VatTreatment.Standard);
         invoice.AddLine(Guid.NewGuid(), "Line B", 1m, Money.Zar(10.02m), VatTreatment.Standard);

@@ -6,10 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Cleared.API.Controllers;
 
-// UserManager/SignInManager are ASP.NET Core Identity's own framework services — used
-// directly here rather than behind another Application-layer port, since the API project
-// is already the composition root that wires up Infrastructure/Identity concerns (same
-// pattern as Program.cs configuring the DbContext directly).
+// UserManager and SignInManager are used directly rather than behind an Application-layer
+// port: the API project is already the composition root for Identity concerns, the same way
+// Program.cs configures the DbContext directly.
 [ApiController]
 [Route("api/v1/auth")]
 public sealed class AuthController(

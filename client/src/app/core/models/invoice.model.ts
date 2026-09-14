@@ -1,18 +1,18 @@
 export type InvoiceStatus = 'Draft' | 'Issued' | 'PartiallyPaid' | 'Paid' | 'Cancelled';
 
-// NotApplicable isn't offered as a choice when creating a line — it's what the server
-// forces every line to for a tenant that isn't VAT registered, regardless of what's sent.
+// NotApplicable isn't offered when creating a line. The server forces every line to it for
+// a tenant that isn't VAT registered, whatever the client sends.
 export type VatTreatment = 'Standard' | 'ZeroRated' | 'Exempt' | 'NotApplicable';
 
-// Which one an invoice becomes is derived server-side from the tenant's VAT status at
-// Issue() and is never a client choice — see Cleared.Domain.Invoicing.DocumentType.
+// Derived server-side from the tenant's VAT status at Issue(), never a client choice.
+// See Cleared.Domain.Invoicing.DocumentType.
 export type DocumentType = 'Invoice' | 'TaxInvoice';
 
 export interface CreateInvoiceLineRequest {
   description: string;
   quantity: number;
-  // A string on the wire, deliberately — see the API contract conventions. JavaScript's
-  // float64 can silently corrupt a decimal, so money is never a JSON number in this app.
+  // A string on the wire: float64 can silently corrupt a decimal, so money is never a
+  // JSON number in this app.
   unitPrice: string;
   vatTreatment: VatTreatment;
 }
@@ -57,9 +57,8 @@ export interface IssueInvoiceRequest {
   dueDate: string;
 }
 
-// Mirrors Cleared.Domain.Invoicing.TaxInvoiceValidationException's shape on the wire
-// (see DomainExceptionHandler's ProblemDetails.Extensions) — the specific fields
-// blocking a tax invoice from issuing, not just a generic error string.
+// Mirrors TaxInvoiceValidationException's shape on the wire (see DomainExceptionHandler's
+// ProblemDetails.Extensions): the fields blocking the issue, not a generic error string.
 export interface ProblemDetails {
   title?: string;
   detail?: string;

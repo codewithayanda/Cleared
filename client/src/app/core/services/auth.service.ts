@@ -17,12 +17,9 @@ interface DecodedClaims {
   exp: number;
 }
 
-// The access token is held ONLY in memory (a signal), never in localStorage or
-// sessionStorage. Both are readable by any script on the page, so a single XSS bug would
-// hand over a working session token. The trade-off, and it is a real one: there is no
-// refresh-token/cookie flow on the backend yet (a known, separately-tracked gap), so a
-// hard page reload clears this signal and the user has to log in again. That is the
-// correct, honest choice given what the API actually supports today — not an oversight.
+// In-memory only, never localStorage or sessionStorage: both are readable by any script,
+// so one XSS would leak a live session. Cost: a page reload logs the user out.
+// TODO: revisit once the API has a refresh-token flow.
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
@@ -69,9 +66,8 @@ export class AuthService {
     this.tenantId.set(this.decodeTenantId(response.accessToken));
   }
 
-  // Decoded for display purposes only (e.g. showing "which tenant am I in"). The token
-  // itself is never trusted client-side for authorization — every enforcement decision
-  // happens server-side against the signed claim, which is the whole point.
+  // Decoded for display only. Authorization is never decided client-side; the server checks
+  // the signed claim on every request.
   private decodeTenantId(token: string): string | null {
     try {
       const payload = token.split('.')[1];

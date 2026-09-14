@@ -2,11 +2,9 @@ using Cleared.Domain.Invoicing;
 
 namespace Cleared.Application.Invoices;
 
-// VatTreatment defaults to Standard when omitted (System.Text.Json leaves an absent enum
-// field at its C# default, which is VatTreatment.Standard — value 0) — the safe default
-// for the common case of ordinary taxable goods/services. InvoiceService overrides it to
-// NotApplicable regardless of what's requested when the tenant isn't VAT registered, since
-// such a tenant cannot charge output VAT on anything, by law.
+// VatTreatment defaults to Standard when omitted: System.Text.Json leaves an absent enum
+// at its C# default, value 0. InvoiceService overrides it to NotApplicable when the tenant
+// is not VAT registered, since such a tenant cannot charge output VAT.
 public sealed record CreateInvoiceLineRequest(
     string Description, decimal Quantity, string UnitPrice, VatTreatment VatTreatment = VatTreatment.Standard);
 

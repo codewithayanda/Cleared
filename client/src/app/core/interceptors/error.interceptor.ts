@@ -4,9 +4,8 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
 
-// A 401 means the token is missing, expired, or was rejected — there is no scenario where
-// retrying with the same token helps. Clear the session and send the user back to login
-// rather than leaving them stuck on a page that will fail every request.
+// A 401 means the token is missing, expired or rejected, and retrying with the same token
+// never helps. Clear the session and send the user back to login.
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
   const router = inject(Router);

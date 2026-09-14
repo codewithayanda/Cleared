@@ -41,8 +41,8 @@ public sealed class InvoiceLineItemConfiguration : IEntityTypeConfiguration<Invo
             money.Property(m => m.Currency).HasConversion<string>().HasMaxLength(3);
         });
 
-        // LineTotal is computed live (LineSubtotal + LineVat) — never stored, same
-        // reasoning as Invoice.Subtotal.
+        // LineTotal is computed (LineSubtotal + LineVat), never stored.
+        // See Invoice.Subtotal.
         builder.Ignore(li => li.LineTotal);
     }
 }

@@ -13,9 +13,8 @@ internal static class SolutionPaths
 
     public static string Api => Path.Combine(ServerRoot, "Cleared.API", "Cleared.API.csproj");
 
-    // Walk up from the test assembly's bin output (wherever it's run from — a dev
-    // machine or a CI runner) until we find the solution file, rather than
-    // hardcoding a path that only works on one machine.
+    // Walk up from the test assembly's bin output until we find the solution file, so this
+    // works from a dev machine and a CI runner without a hardcoded path.
     private static string FindServerRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

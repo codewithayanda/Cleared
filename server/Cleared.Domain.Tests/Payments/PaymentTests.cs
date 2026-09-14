@@ -52,8 +52,8 @@ public class PaymentTests
     public void RecordManual_ReceivedAtCanDifferFromRecordedAt_KeepsThemDistinct()
     {
         // The date money arrived and the moment it was typed into Cleared are different
-        // facts — a payment entered days late off a bank statement is the normal case,
-        // not an edge case. Neither field should ever be derived from the other.
+        // facts. Entering a payment days late off a bank statement is the normal case, so
+        // neither field should be derived from the other.
         var payment = Payment.RecordManual(
             Guid.NewGuid(), _tenantId, _invoiceId, Money.Zar(500m), _receivedAt, _recordedAt);
 

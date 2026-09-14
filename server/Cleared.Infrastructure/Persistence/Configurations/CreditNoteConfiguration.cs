@@ -20,8 +20,8 @@ public sealed class CreditNoteConfiguration : IEntityTypeConfiguration<CreditNot
             .IsRequired()
             .HasMaxLength(500);
 
-        // Subtotal/VatTotal/Total are computed live from Lines — never stored, same
-        // reasoning as Invoice (see InvoiceConfiguration).
+        // Subtotal, VatTotal and Total are computed from Lines, never stored.
+        // See InvoiceConfiguration.
         builder.Ignore(cn => cn.Subtotal);
         builder.Ignore(cn => cn.VatTotal);
         builder.Ignore(cn => cn.Total);

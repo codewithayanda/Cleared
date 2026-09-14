@@ -9,13 +9,12 @@ public sealed class Customer : Entity
     public string? VatNumber { get; private set; }
     public string? Email { get; private set; }
 
-    // Required on a tax invoice's recipient details (VAT Act s20(4)) — see
-    // InvoiceService's tax-invoice validation. Free text rather than a structured address
-    // value object: nothing else in the system parses or geocodes it, it's only ever
-    // printed, so a single field is enough for what this needs to do.
+    // Required on a tax invoice's recipient details (VAT Act s20(4)); see InvoiceService's
+    // tax-invoice validation. Free text, not a structured value object: it is only ever
+    // printed, never parsed or geocoded.
     public string? Address { get; private set; }
 
-    // Not a constructor parameter — see the note on Tenant.CreatedAt / InvoiceLineItem.UnitPrice.
+    // Private setter, not a constructor parameter. See InvoiceLineItem.UnitPrice.
     public DateTimeOffset CreatedAt { get; private set; }
 
     private Customer(

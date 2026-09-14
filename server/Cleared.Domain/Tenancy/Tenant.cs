@@ -9,25 +9,20 @@ public sealed class Tenant : Entity
     public string? VatNumber { get; private set; }
     public VatStatus VatStatus { get; private set; }
 
-    // Required on a tax invoice's supplier details (VAT Act s20(4)) — same requirement,
-    // same free-text reasoning, as Customer.Address. Nullable because it isn't known at
-    // sign-up; enforced later, at Issue(), only when it's actually needed.
+    // Required on a tax invoice's supplier details (VAT Act s20(4)), same as
+    // Customer.Address. Nullable because it is not known at sign-up; enforced at Issue().
     public string? Address { get; private set; }
 
-    // Free text rather than separate structured fields (routing number, SWIFT, etc.) —
-    // South African EFT only needs these three to be identifiable to a paying customer,
-    // and nothing here parses or validates them against an actual bank. Not required to
-    // register or to issue: unlike Address, there's no legal requirement forcing this: a
-    // tenant that hasn't filled it in yet can still legally issue invoices, they just
-    // can't usefully get paid by EFT until they do.
+    // Free text, not structured fields: South African EFT needs only these three to be
+    // identifiable to a paying customer, and nothing validates them against a real bank.
+    // Not required to register or issue, unlike Address. Without them, EFT just isn't usable.
     public string? BankName { get; private set; }
     public string? BankAccountNumber { get; private set; }
     public string? BankBranchCode { get; private set; }
 
-    // Not a constructor parameter — see the note on InvoiceLineItem.UnitPrice for the
-    // general shape of this issue. DateTimeOffset specifically was rejected by EF Core's
-    // constructor-binding here in a way Guid/string/enum parameters were not; moving it to
-    // a private setter set post-construction is the same proven workaround.
+    // Private setter, not a constructor parameter: EF Core's constructor binding rejects
+    // DateTimeOffset here, where Guid, string and enum parameters bind fine.
+    // See InvoiceLineItem.UnitPrice.
     public DateTimeOffset CreatedAt { get; private set; }
 
     private Tenant(
@@ -113,9 +108,8 @@ public sealed class Tenant : Entity
         TradingName = tradingName;
     }
 
-    // Deliberately separate from Rename/RegisterForVat: this is the "company profile"
-    // settings screen updating contact and payment details, not the legally-sensitive
-    // identity fields those two touch.
+    // Separate from Rename/RegisterForVat: this is the company-profile settings screen
+    // updating contact and payment details, not the identity fields those two touch.
     public void UpdateProfile(string? address, string? bankName, string? bankAccountNumber, string? bankBranchCode)
     {
         Address = address;

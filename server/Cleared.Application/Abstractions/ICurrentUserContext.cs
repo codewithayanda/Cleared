@@ -1,9 +1,8 @@
 namespace Cleared.Application.Abstractions;
 
-// Resolved once per request from the validated JWT's sub claim — same reasoning as
-// ITenantContext, but for "which user", not "which tenant". Kept as a separate interface
-// rather than adding UserId to ITenantContext: they're two different questions, and a
-// port should expose only the narrow thing a use case actually needs.
+// Resolved once per request from the validated JWT's sub claim, like ITenantContext.
+// Separate from ITenantContext because "which user" and "which tenant" are different
+// questions.
 public interface ICurrentUserContext
 {
     Guid UserId { get; }

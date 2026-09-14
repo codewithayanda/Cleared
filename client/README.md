@@ -1,4 +1,4 @@
-# Cleared — web client
+# Cleared web client
 
 Angular 22 SPA. Standalone components, **zoneless** change detection, Tailwind 4, Vitest.
 
@@ -17,7 +17,7 @@ npm run format       # Prettier write
 npm run format:check # Prettier check (CI runs this)
 ```
 
-## Zoneless — read this before writing a component
+## Zoneless: read this before writing a component
 
 There is no `zone.js`. Angular will not detect changes just because a callback ran, so
 the pattern that works in a zone-based app does **not** work here:
@@ -66,7 +66,7 @@ Path aliases, so imports don't crawl back up the tree:
 
 ## API URL
 
-`environment.apiUrl` is `/api/v1` — **relative, on purpose**. In deployed environments
+`environment.apiUrl` is `/api/v1`, **relative on purpose**. In deployed environments
 CloudFront routes `/api/*` to the load balancer, so one built artifact works everywhere:
 build once, promote the same bundle through staging and production. Locally the dev
 server proxies `/api` to the API instead (see `proxy.conf.json`).
@@ -75,7 +75,7 @@ server proxies `/api` to the API instead (see `proxy.conf.json`).
 
 `.npmrc` pins installs to `https://registry.npmjs.org/`. Keep it. If a machine has a
 different default registry configured, that registry's URLs get written into
-`package-lock.json`, and the lockfile then only installs for people who can reach it —
+`package-lock.json`, and the lockfile then only installs for people who can reach it,
 CI included.
 
 `npm run check:registry` enforces this, and CI runs the same check before `npm ci`.
@@ -89,22 +89,19 @@ rm -rf node_modules package-lock.json && npm install
 ## Bundle budgets
 
 The initial chunk is capped at 320 kB (warning) / 400 kB (error), raw. With the full
-authenticated app (routing, HTTP, both interceptors, the auth guard) this currently sits
-around 290 kB raw / ~79 kB gzipped — comfortably inside the budget, and, more importantly,
-comfortably inside the number that actually matters below.
+authenticated app (routing, HTTP, both interceptors, the auth guard) it currently sits
+around 290 kB raw, ~79 kB gzipped.
 
-The public payment page at `/pay/:token` (not built yet — it arrives with the payment
-gateway work) is opened by the Owner's customers, often on a mid-range Android over
-mobile data, and must stay under 200 kB gzipped. It'll be its own lazy route, so it only
-pays for this shared initial chunk (routing + HTTP) plus its own small chunk — at ~79 kB
-gzipped today, there's still well over 100 kB of headroom before that page is at risk.
-Angular's budget above measures **raw** size as a guardrail; the gzipped number is the
-one to actually watch, and it's worth spot-checking again once that route exists.
+The raw budget is a guardrail; the gzipped number is the one that matters. The public
+payment page at `/pay/:token` (not built yet, it arrives with the payment gateway work)
+will be opened by the Owner's customers on mobile data and must stay under 200 kB gzipped.
+As its own lazy route it pays for this shared initial chunk plus its own, so there is over
+100 kB of headroom today. Worth re-checking once that route exists.
 
 ## Testing
 
 Vitest with jsdom. `TestBed`, `provideHttpClientTesting` and `HttpTestingController`
-work exactly as they do under Karma — only the runner differs: `describe`/`it`/`expect`
+work exactly as they do under Karma; only the runner differs. `describe`/`it`/`expect`
 come from Vitest, and spies are `vi.fn()` rather than `jasmine.createSpy`.
 
 A guard or interceptor is not done until a test proves both that it allows the valid

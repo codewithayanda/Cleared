@@ -12,8 +12,8 @@ export interface TenantResponse {
   bankBranchCode: string | null;
 }
 
-// address and the banking fields are settled after sign-up, via the company settings
-// screen — not necessarily known at registration.
+// address and the banking fields are set after sign-up via the company settings screen.
+// They are not always known at registration.
 export interface UpdateTenantProfileRequest {
   address: string | null;
   bankName: string | null;

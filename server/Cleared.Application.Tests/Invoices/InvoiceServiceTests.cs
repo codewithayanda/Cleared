@@ -146,8 +146,8 @@ public class InvoiceServiceTests
     public async Task IssueAsync_NotRegisteredTenant_IssuesAsPlainInvoiceWithoutTaxInvoiceValidation()
     {
         var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
-        // No address on file at all — would fail tax-invoice validation, but this tenant
-        // isn't issuing a tax invoice, so that validation must never run.
+        // No address on file, which would fail tax-invoice validation. This tenant is not
+        // issuing a tax invoice, so that validation must not run.
         var customerId = SeedCustomer(tenantId, address: null);
         var service = CreateService();
         var invoice = await service.CreateAsync(

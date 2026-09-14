@@ -15,9 +15,8 @@ public sealed class CreditNoteService(
     ICurrentUserContext currentUserContext,
     IClock clock)
 {
-    // Returns null for an invoice that doesn't exist for this tenant — including one that
-    // belongs to a different tenant entirely — so the controller can map that to a plain
-    // 404, indistinguishable from genuine absence. Never 403: a different status for
+    // Returns null for an invoice this tenant cannot see, including one belonging to another
+    // tenant, so the controller maps both to a plain 404. Never 403: a separate status for
     // "exists but isn't yours" would confirm the id refers to something real.
     public async Task<CreditNoteResponse?> CreateAsync(
         Guid tenantId, Guid invoiceId, CreateCreditNoteRequest request, CancellationToken cancellationToken)
@@ -42,9 +41,10 @@ public sealed class CreditNoteService(
         var existingCreditNotes =
             await creditNoteRepository.ListByInvoiceIdAsync(tenantId, invoiceId, cancellationToken);
 
-        // How much of each original line has already been credited by a prior credit
-        // note — a second credit note against the same invoice must not be able to credit
-        // more than what's left.
+        // How much of each original line a prior credit note already covered, so a second
+        // note against the same invoice cannot credit more than what's left.
+        // TODO: this read-then-write is not serialised. READ COMMITTED lets two concurrent
+        // notes each credit the full remainder. Needs SELECT ... FOR UPDATE on the invoice.
         var alreadyCredited = existingCreditNotes
             .SelectMany(creditNote => creditNote.Lines)
             .GroupBy(line => line.InvoiceLineItemId)
@@ -63,7 +63,7 @@ public sealed class CreditNoteService(
             if (lineRequest.Quantity <= 0 || lineRequest.Quantity > remainingQuantity)
             {
                 throw new ArgumentException(
-                    $"Cannot credit {lineRequest.Quantity} of '{originalLine.Description}' — " +
+                    $"Cannot credit {lineRequest.Quantity} of '{originalLine.Description}': " +
                     $"only {remainingQuantity} remains creditable.",
                     nameof(request));
             }
@@ -73,8 +73,8 @@ public sealed class CreditNoteService(
                 originalLine.UnitPrice, originalLine.VatTreatment));
         }
 
-        // Claiming the number and saving the credit note must succeed or fail together —
-        // same reasoning as invoice numbering (see InvoiceNumberAllocator).
+        // Claiming the number and saving the credit note must succeed or fail together.
+        // See InvoiceNumberAllocator.
         await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         var number = await numberAllocator.AllocateAsync(tenantId, clock.Today.Year, cancellationToken);
@@ -85,10 +85,9 @@ public sealed class CreditNoteService(
 
         await creditNoteRepository.AddAsync(creditNote, cancellationToken);
 
-        // Fully credited — every line's cumulative credited quantity, across this credit
-        // note and all prior ones, now reaches what was originally invoiced — means
-        // nothing is left owing, so the invoice is cancelled. A partial credit reduces
-        // what's owed without retiring the document itself.
+        // Fully credited means every line's cumulative credited quantity, across this note
+        // and all prior ones, now reaches what was invoiced, so nothing is left owing and
+        // the invoice is cancelled. A partial credit leaves the document in place.
         var fullyCredited = invoice.Lines.All(line =>
         {
             var creditedByThisNote = lineRequests
@@ -106,7 +105,7 @@ public sealed class CreditNoteService(
         var auditEntry = AuditLog.Record(
             Guid.NewGuid(), tenantId, currentUserContext.UserId, "Invoice", invoiceId, "CreditNoteIssued",
             clock.UtcNow,
-            $"Issued credit note {number} for R{creditNote.Total.Amount:F2} — {request.Reason}" +
+            $"Issued credit note {number} for R{creditNote.Total.Amount:F2}. Reason: {request.Reason}" +
             (fullyCredited ? " (invoice fully credited, now cancelled)." : "."));
         await auditLogRepository.AddAsync(auditEntry, cancellationToken);
 

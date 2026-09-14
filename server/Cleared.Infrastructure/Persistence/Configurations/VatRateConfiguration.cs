@@ -15,8 +15,8 @@ public sealed class VatRateConfiguration : IEntityTypeConfiguration<VatRate>
         builder.Property(r => r.Rate)
             .HasPrecision(9, 6);
 
-        // Not tenant-scoped — this is national reference data, one of the few tables in
-        // the schema without a tenant_id (see the ERD's note on that).
+        // Not tenant-scoped: national reference data, one of the few tables without a
+        // tenant_id.
         builder.HasIndex(r => r.EffectiveFrom);
     }
 }

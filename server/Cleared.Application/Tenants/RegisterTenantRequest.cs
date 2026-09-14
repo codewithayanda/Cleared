@@ -12,8 +12,8 @@ public sealed record RegisterTenantRequest(
     string? BankAccountNumber = null,
     string? BankBranchCode = null);
 
-// Address and the banking fields are settled after sign-up via UpdateProfileAsync, not
-// necessarily known at registration — see the "company profile" settings screen.
+// Address and the banking fields are set after sign-up via UpdateProfileAsync; they are
+// not always known at registration. See the company-profile settings screen.
 public sealed record UpdateTenantProfileRequest(
     string? Address, string? BankName, string? BankAccountNumber, string? BankBranchCode);
 

@@ -9,10 +9,9 @@ using Cleared.Domain.Tenancy;
 
 namespace Cleared.Application.Tests.TestDoubles;
 
-// Hand-written fakes rather than a mocking library — these services have few enough
-// dependencies that a plain in-memory implementation is simpler to read than a
-// framework's setup/verify ceremony, and adds no new package to a company machine where
-// every dependency is deliberately kept to what's actually needed.
+// These fakes honour tenantId in every filter, so an Application test cannot pass a broken
+// tenant scope. They do not model transactions: FakeUnitOfWork is a no-op and its
+// transaction always commits, so no test here can catch a rollback or a write race.
 internal sealed class FakeTenantRepository : ITenantRepository
 {
     private readonly Dictionary<Guid, Tenant> _tenants = [];

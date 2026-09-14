@@ -77,9 +77,8 @@ public class CreditNoteTests
     [Fact]
     public void Create_UsesTheSuppliedRate_NotAHardcodedOne()
     {
-        // Simulates crediting an invoice that was issued under an OLD rate, after the
-        // rate has since changed — the credit note must use the original invoice's rate,
-        // never "today's" rate (see CreditNoteLineItem.Create).
+        // Credits an invoice issued under an older rate, after the rate changed. The credit
+        // note must use the original invoice's rate, not today's.
         const decimal historicalRate = 0.14m;
 
         var creditNote = CreditNote.Create(

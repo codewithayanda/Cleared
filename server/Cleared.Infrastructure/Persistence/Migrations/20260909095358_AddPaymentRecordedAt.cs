@@ -11,9 +11,9 @@ namespace Cleared.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Backfills existing rows with "now" rather than DateTimeOffset.MinValue — there
-            // are no production payments yet, so the exact backfilled value doesn't matter,
-            // but a sane timestamp is safer than a year-1 placeholder leaking into a UI.
+            // Backfills existing rows with "now" rather than DateTimeOffset.MinValue. There
+            // are no production payments yet, so the value doesn't matter, but a year-1
+            // placeholder leaking into the UI would look broken.
             migrationBuilder.AddColumn<DateTimeOffset>(
                 name: "recorded_at",
                 table: "payments",

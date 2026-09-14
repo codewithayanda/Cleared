@@ -1,6 +1,6 @@
 <div class="mb-6">
   <h1 class="text-2xl font-medium text-steel-900">New invoice</h1>
-  <p class="mt-1 text-sm text-steel-500">Add line items — you can issue it once it's ready.</p>
+  <p class="mt-1 text-sm text-steel-500">Add line items. You can issue it once it's ready.</p>
 </div>
 
 <form [formGroup]="form" (ngSubmit)="submit()" class="max-w-2xl space-y-6">
@@ -18,9 +18,9 @@
     </select>
     @if (customers().length === 0) {
       <p class="mt-2 text-xs text-steel-500">
-        No customers yet —
+        No customers yet.
         <a routerLink="/customers/new" class="font-medium text-gold-600 hover:text-gold-700"
-          >add one first</a
+          >Add one first</a
         >.
       </p>
     }

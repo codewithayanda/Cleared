@@ -20,8 +20,7 @@ public sealed class ClearedDbContext(DbContextOptions<ClearedDbContext> options,
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
-    // Not tenant-scoped — national reference data, shared by every tenant. See the ERD's
-    // note on the few tables that are deliberately not filtered this way.
+    // Not tenant-scoped: national reference data, shared by every tenant.
     public DbSet<VatRate> VatRates => Set<VatRate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

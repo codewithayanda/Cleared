@@ -8,20 +8,17 @@ public sealed class Payment : Entity
     public Guid InvoiceId { get; }
     public PaymentMethod Method { get; }
 
-    // A free-text note the Owner types when recording what they saw arrive (e.g. a bank
-    // reference) — for their own reconciliation, not matched against anything by the
-    // system. There's no structured payment-reference/reconciliation engine yet; the
-    // Owner looks at their own invoice list and records against the one they recognise.
+    // A free-text note the Owner types when recording what arrived (e.g. a bank reference),
+    // for their own reconciliation. Nothing in the system matches against it.
     public string? Reference { get; }
 
-    // Not constructor parameters — see the note on Tenant.CreatedAt / InvoiceLineItem.UnitPrice.
+    // Private setters, not constructor parameters. See InvoiceLineItem.UnitPrice.
     public Money Amount { get; private set; }
     public DateOnly ReceivedAt { get; private set; }
 
-    // When this record was captured in Cleared — distinct from ReceivedAt, which is the
-    // date the Owner says the money actually arrived and is often entered days later off
-    // a bank statement. RecordedAt has a time component precisely because it's a system
-    // timestamp, not a business fact; never present the two as if they were the same thing.
+    // When this record was captured in Cleared, distinct from ReceivedAt, which is the date
+    // the Owner says the money arrived and is often entered days later off a bank statement.
+    // RecordedAt has a time component because it is a system timestamp, not a business fact.
     public DateTimeOffset RecordedAt { get; private set; }
 
     private Payment(Guid id, Guid tenantId, Guid invoiceId, PaymentMethod method, string? reference) : base(id)

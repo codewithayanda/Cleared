@@ -24,11 +24,9 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.VatRateApplied)
             .HasPrecision(9, 6);
 
-        // Subtotal/VatTotal/Total are computed live from Lines (see Invoice.cs) — never
-        // stored. Persisting them would let them drift from the lines that produced them
-        // (I-02/I-03), and AddLine/RemoveLine already refuse to run once an invoice is no
-        // longer Draft, so the lines behind these computations are frozen the moment an
-        // invoice is issued.
+        // Subtotal, VatTotal and Total are computed from Lines (see Invoice.cs), never
+        // stored: persisting them would let them drift from the lines that produced them.
+        // AddLine/RemoveLine reject anything past Draft, so those lines are frozen at issue.
         builder.Ignore(i => i.Subtotal);
         builder.Ignore(i => i.VatTotal);
         builder.Ignore(i => i.Total);

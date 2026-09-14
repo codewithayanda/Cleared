@@ -22,7 +22,7 @@ export class InvoiceForm {
   protected readonly customers = signal<Customer[]>([]);
   protected readonly submitting = signal(false);
 
-  // NotApplicable isn't offered here — see VatTreatment.
+  // NotApplicable isn't offered here. See VatTreatment.
   protected readonly vatTreatments: { value: VatTreatment; label: string }[] = [
     { value: 'Standard', label: 'Standard' },
     { value: 'ZeroRated', label: 'Zero-rated' },
@@ -61,9 +61,8 @@ export class InvoiceForm {
     }
   }
 
-  // Display-only preview — quantity × price, nothing tax-related to get wrong yet. The
-  // server recomputes and stores the authoritative figure; this is purely for the person
-  // filling in the form to see a running total as they type.
+  // Display-only preview: quantity times price, nothing tax-related yet. The server
+  // recomputes the authoritative figure; this just shows a running total as you type.
   protected lineTotal(index: number): number {
     const line = this.lines.at(index).value;
     return (line.quantity ?? 0) * (line.unitPrice ?? 0);

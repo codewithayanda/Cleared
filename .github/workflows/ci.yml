@@ -14,8 +14,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  style:
+    name: comment and prose style
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: client/.nvmrc
+
+      - name: Check comment style
+        run: node scripts/check-comment-style.mjs
+
   server:
-    name: server — build and test
+    name: server build and test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -72,7 +88,7 @@ jobs:
           if-no-files-found: ignore
 
   client:
-    name: client — lint, test and build
+    name: client lint, test and build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -143,7 +159,7 @@ jobs:
           dotnet list Cleared.slnx package --vulnerable --include-transitive > vuln.txt 2>&1 || true
           cat vuln.txt
           if grep -qiE 'has the following vulnerable packages' vuln.txt; then
-            echo "::error::Vulnerable NuGet packages found — see output above (NFR S-09)"
+            echo "::error::Vulnerable NuGet packages found. See output above."
             exit 1
           fi
           echo "No vulnerable NuGet packages reported."

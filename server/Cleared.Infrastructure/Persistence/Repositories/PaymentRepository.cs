@@ -15,9 +15,9 @@ public sealed class PaymentRepository(ClearedDbContext dbContext) : IPaymentRepo
             .Where(p => p.TenantId == tenantId && p.InvoiceId == invoiceId)
             .ToListAsync(cancellationToken);
 
-    // One query for every payment the tenant has ever recorded, grouped by invoice in
-    // memory by the caller — cheaper and safer than summing Money (an EF complex type)
-    // via a translated SQL aggregate, and avoids an N+1 per-invoice query when listing.
+    // Every payment the tenant has recorded, grouped by invoice in memory by the caller.
+    // Summing Money in SQL is awkward because it is an EF complex type.
+    // TODO: unbounded, and not paginated. See the TODO in InvoiceService.ListAsync.
     public async Task<IReadOnlyList<Payment>> ListByTenantIdAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await dbContext.Payments
             .Where(p => p.TenantId == tenantId)

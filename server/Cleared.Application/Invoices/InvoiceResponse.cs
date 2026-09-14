@@ -1,7 +1,7 @@
 namespace Cleared.Application.Invoices;
 
-// Money amounts are strings on the wire, never JSON numbers — JavaScript's float64
-// can silently corrupt a decimal (see the API contract conventions).
+// Money amounts are strings on the wire, never JSON numbers: JavaScript's float64 can
+// silently corrupt a decimal.
 public sealed record InvoiceLineResponse(
     Guid Id,
     string Description,

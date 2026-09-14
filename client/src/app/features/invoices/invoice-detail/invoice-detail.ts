@@ -42,15 +42,14 @@ export class InvoiceDetail {
 
   protected readonly downloadingPdf = signal(false);
 
-  // Can a payment be recorded at all? Mirrors Invoice.RecordPaymentTotal's own guard —
-  // an invoice that's Draft, already Paid, or Cancelled can't take one.
+  // Mirrors Invoice.RecordPaymentTotal's guard: Draft, Paid and Cancelled can't take one.
   protected readonly canRecordPayment = computed(() => {
     const status = this.invoice()?.status;
     return status === 'Issued' || status === 'PartiallyPaid';
   });
 
-  // "0.150000" -> "15" — a rate is a fraction snapshotted at issue (see VatRate), never
-  // recomputed; this only formats it for display.
+  // "0.150000" -> "15". The rate is a fraction snapshotted at issue (see VatRate) and is
+  // never recomputed; this only formats it.
   protected readonly vatRatePercentage = computed(() => {
     const rate = this.invoice()?.vatRateApplied;
     return rate ? (Number(rate) * 100).toFixed(0) : null;
@@ -79,8 +78,7 @@ export class InvoiceDetail {
         this.invoice.set(invoice);
         this.loading.set(false);
 
-        // A draft can never have a payment against it — skip the call rather than show
-        // an empty payments table underneath a draft that was never eligible for one.
+        // A draft can't have payments, so skip the call rather than render an empty table.
         if (invoice.status !== 'Draft') {
           this.paymentService.list(id).subscribe((payments) => this.payments.set(payments));
         }
@@ -149,12 +147,10 @@ export class InvoiceDetail {
       });
   }
 
-  // Opened in a new tab rather than force-downloaded — most browsers render a PDF inline,
-  // so the Owner can look at it before deciding to save it via their own PDF viewer.
-  //
-  // The tab is opened synchronously, in the same tick as the click, and redirected once the
-  // blob arrives — window.open() from inside the subscribe callback would run after the async
-  // HTTP round-trip completes, which every mainstream browser's popup blocker silently kills.
+  // Opened in a new tab rather than downloaded, so the Owner can read the PDF inline first.
+  // The tab must be opened synchronously in the same tick as the click and redirected when
+  // the blob arrives: window.open() inside the subscribe callback runs after the HTTP
+  // round-trip, and popup blockers kill that silently.
   protected viewPdf(): void {
     const current = this.invoice();
     if (!current) {

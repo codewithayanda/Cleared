@@ -21,8 +21,8 @@ using Microsoft.IdentityModel.Tokens;
 using QuestPDF.Infrastructure;
 using Scalar.AspNetCore;
 
-// Community license: free under $1M USD annual revenue — see the package comment in
-// Directory.Packages.props and the ADR this decision needs.
+// Community license: free under $1M USD annual revenue. See the package comment in
+// Directory.Packages.props.
 QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);

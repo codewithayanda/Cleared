@@ -8,13 +8,9 @@ using QuestPDF.Infrastructure;
 
 namespace Cleared.Infrastructure.Documents;
 
-// QuestPDF.Settings.License is set once at startup (see Program.cs) — Community edition,
-// free under $1M USD annual revenue (see the ADR this needs, and the package comment in
-// Directory.Packages.props).
-//
-// Colors are the same steel/gold tokens as client/src/styles.css's @theme block, deliberately
-// kept in sync by hand — this is the one other place a customer sees Cleared's branding, and
-// it should look like it came from the same product as the web app.
+// QuestPDF Community edition, free under $1M USD annual revenue; the license is set once at
+// startup in Program.cs. Colors mirror the steel/gold tokens in client/src/styles.css's
+// @theme block, kept in sync by hand: this is the other place a customer sees the branding.
 public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
 {
     private const string SteelDark = "#1a1f26";
@@ -165,12 +161,9 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
                         });
                     });
 
-                    // Not required to issue an invoice at all (see Tenant.BankName's own
-                    // note) — but without it, there's a total on this page and no way for
-                    // whoever's reading it to actually pay it by EFT. Given banking details
-                    // by design (see D-D / EFT-first payment model) — it's the single most
-                    // actionable thing on the page, so it earns its own callout, not just
-                    // another plain text block.
+                    // Not required to issue an invoice (see Tenant.BankName), but without it
+                    // the page shows a total with no way to pay it by EFT, so it gets its
+                    // own callout rather than another plain text block.
                     if (tenant.BankName is not null || tenant.BankAccountNumber is not null
                         || tenant.BankBranchCode is not null)
                     {
@@ -221,10 +214,9 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
             });
         });
 
-        // Embedded in the PDF itself rather than left to the client — a blob: URL built
-        // from a fetched byte array carries no filename or Content-Disposition of its own,
-        // so this is what most browsers fall back to when the Owner saves the file, on
-        // both the inline view and a direct download.
+        // Embedded in the PDF rather than left to the client: a blob: URL built from a
+        // fetched byte array carries no filename of its own, so this is what browsers fall
+        // back to when the Owner saves the file.
         return document
             .WithMetadata(new DocumentMetadata { Title = invoice.Number ?? title })
             .GeneratePdf();

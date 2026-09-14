@@ -6,8 +6,8 @@ public sealed class CreditNoteLineItem : Entity
 {
     public Guid CreditNoteId { get; }
 
-    // The original invoice line this credits — a credit note line is never freestanding,
-    // it always corrects something that was actually charged.
+    // The original invoice line this credits. A credit note line always corrects
+    // something that was actually charged.
     public Guid InvoiceLineItemId { get; }
 
     public string Description { get; }
@@ -31,9 +31,8 @@ public sealed class CreditNoteLineItem : Entity
         VatTreatment = vatTreatment;
     }
 
-    // vatRate is the ORIGINAL invoice's VatRateApplied, not today's rate — a credit note
-    // corrects a specific invoice and must use the rate that invoice actually charged, or
-    // a credit issued after a rate change would silently stop balancing against it.
+    // vatRate is the original invoice's VatRateApplied, not today's rate. A credit issued
+    // after a rate change must use the rate that invoice charged, or it stops balancing.
     internal static CreditNoteLineItem Create(
         Guid id,
         Guid creditNoteId,

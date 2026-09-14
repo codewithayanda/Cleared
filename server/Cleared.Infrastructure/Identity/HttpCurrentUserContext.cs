@@ -4,11 +4,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace Cleared.Infrastructure.Identity;
 
-// TokenService writes the user id to the standard "sub" claim, but ASP.NET Core's JWT
-// handler remaps well-known claim types on the way in (unless MapInboundClaims is
-// disabled, which Program.cs doesn't do) — "sub" arrives on the principal as
-// ClaimTypes.NameIdentifier, not as "sub" itself. tenant_id is a custom claim name, so it
-// isn't remapped, which is why HttpTenantContext can look it up directly.
+// TokenService writes the user id to the "sub" claim, but ASP.NET Core's JWT handler remaps
+// well-known claim types on the way in, so it arrives as ClaimTypes.NameIdentifier.
+// tenant_id is a custom name and is not remapped, so HttpTenantContext reads it directly.
 public sealed class HttpCurrentUserContext(IHttpContextAccessor httpContextAccessor) : ICurrentUserContext
 {
     public Guid UserId

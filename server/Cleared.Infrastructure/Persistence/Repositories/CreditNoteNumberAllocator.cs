@@ -5,10 +5,9 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Cleared.Infrastructure.Persistence.Repositories;
 
-// Mirrors InvoiceNumberAllocator exactly, against its own credit_note_number_sequences
-// table — a separate series with its own "CN-" prefix, per D-K. See InvoiceNumberAllocator
-// for why this shape (UPSERT under Postgres's own row-level atomicity) is safe under
-// concurrency; that reasoning applies here unchanged.
+// Mirrors InvoiceNumberAllocator against its own credit_note_number_sequences table: a
+// separate series with a "CN-" prefix. See InvoiceNumberAllocator for why the UPSERT is
+// safe under concurrency.
 public sealed class CreditNoteNumberAllocator(ClearedDbContext dbContext) : ICreditNoteNumberAllocator
 {
     public async Task<string> AllocateAsync(Guid tenantId, int year, CancellationToken cancellationToken)

@@ -2,11 +2,9 @@ using Cleared.Domain.Common;
 
 namespace Cleared.Domain.Auditing;
 
-// Append-only by design: nothing may update or delete an entry, and nothing else in the
-// domain holds a reference back to one. Details is a free-form summary of what happened
-// (e.g. "Issued as INV-2026-0001, total R1150.00"), not a structured before/after diff —
-// every action audited so far (issue, credit, payment) is a one-way creation or state
-// transition, not a field-level edit, so there's no meaningful "before" to diff against.
+// Append-only: nothing updates or deletes an entry, and nothing holds a reference to one.
+// Details is a free-form summary ("Issued as INV-2026-0001, total R1150.00"), not a
+// before/after diff: every audited action is a creation or state transition, not an edit.
 public sealed class AuditLog : Entity
 {
     public Guid TenantId { get; }
@@ -14,9 +12,9 @@ public sealed class AuditLog : Entity
     public string Action { get; }
     public string? Details { get; }
 
-    // Not constructor parameters — see the note on Tenant.CreatedAt / InvoiceLineItem.UnitPrice.
-    // EF Core's constructor-binding rejected this whole constructor once it had two Guid
-    // parameters beyond id/tenantId (UserId, EntityId) — same limitation, a different shape.
+    // Private setters, not constructor parameters: EF Core's constructor binding rejects
+    // this constructor once it takes UserId and EntityId as well as id/tenantId.
+    // See InvoiceLineItem.UnitPrice.
     public Guid UserId { get; private set; }
     public Guid EntityId { get; private set; }
     public DateTimeOffset OccurredAt { get; private set; }
