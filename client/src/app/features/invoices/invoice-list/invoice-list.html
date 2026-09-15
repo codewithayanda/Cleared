@@ -10,9 +10,13 @@
   </a>
 </div>
 
- <input type="text" placeholder="Search by number" [formControl]="searchByNumber"
-  class="block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"/>
-  <br>
+<input
+  type="text"
+  placeholder="Search by number"
+  [formControl]="searchByNumber"
+  class="block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+/>
+<br />
 @if (loading()) {
   <p class="text-sm text-steel-500">Loading…</p>
 } @else if (invoices().length === 0) {

@@ -5,7 +5,7 @@ import { Invoice } from '@core/models/invoice.model';
 import { EmptyState } from '@shared/components/empty-state/empty-state';
 import { StatusBadge } from '@shared/components/status-badge/status-badge';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-  
+
 @Component({
   selector: 'app-invoice-list',
   imports: [RouterLink, EmptyState, StatusBadge, ReactiveFormsModule],
@@ -13,7 +13,7 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
   templateUrl: './invoice-list.html',
 })
 export class InvoiceList {
-  protected readonly searchByNumber = new FormControl('') ;
+  protected readonly searchByNumber = new FormControl('');
   private readonly invoiceService = inject(InvoiceService);
 
   protected readonly invoices = signal<Invoice[]>([]);
@@ -31,9 +31,10 @@ export class InvoiceList {
 
   filterInvoices(invoices: Invoice[], searchTerm: string | null) {
     if (searchTerm) {
-        return invoices.filter(invoice => invoice.number?.toLowerCase().includes(searchTerm.toLowerCase()));  
+      return invoices.filter((invoice) =>
+        invoice.number?.toLowerCase().includes(searchTerm.toLowerCase()),
+      );
     }
     return invoices;
   }
-
 }
