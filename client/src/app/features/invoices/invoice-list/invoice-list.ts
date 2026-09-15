@@ -4,14 +4,16 @@ import { InvoiceService } from '@core/services/invoice.service';
 import { Invoice } from '@core/models/invoice.model';
 import { EmptyState } from '@shared/components/empty-state/empty-state';
 import { StatusBadge } from '@shared/components/status-badge/status-badge';
-
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+  
 @Component({
   selector: 'app-invoice-list',
-  imports: [RouterLink, EmptyState, StatusBadge],
+  imports: [RouterLink, EmptyState, StatusBadge, ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './invoice-list.html',
 })
 export class InvoiceList {
+  protected readonly searchByNumber = new FormControl('') ;
   private readonly invoiceService = inject(InvoiceService);
 
   protected readonly invoices = signal<Invoice[]>([]);
@@ -26,4 +28,13 @@ export class InvoiceList {
       error: () => this.loading.set(false),
     });
   }
+
+  filterInvoices(invoices: Invoice[], searchTerm: string | null) {
+    if (searchTerm) {
+        const filteredInvoices = invoices.filter(invoice => invoice.number?.includes(searchTerm));
+        return filteredInvoices;
+    }
+    return invoices;
+  }
+
 }

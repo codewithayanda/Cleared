@@ -10,7 +10,11 @@
     New invoice
   </a>
 </div>
-
+<div class="col-span-4">
+ <input type="text" formControlName="searchByNumber" placeholder="Search by number" [formControl]="searchByNumber"
+  class="block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"/>
+  <br>
+</div>
 @if (loading()) {
   <p class="text-sm text-steel-500">Loading…</p>
 } @else if (invoices().length === 0) {
@@ -53,7 +57,7 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-steel-100">
-        @for (invoice of invoices(); track invoice.id) {
+        @for (invoice of filterInvoices(invoices(), searchByNumber.value); track invoice.id) {
           <tr [routerLink]="['/invoices', invoice.id]" class="cursor-pointer hover:bg-steel-50">
             <td class="px-4 py-3 text-sm font-medium text-steel-900">
               {{ invoice.number || 'Draft' }}
