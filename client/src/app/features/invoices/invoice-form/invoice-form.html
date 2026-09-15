@@ -61,8 +61,8 @@
           <div class="col-span-2">
             <select
               formControlName="vatTreatment"
-              class="block w-full rounded-md border border-steel-200 px-2 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
-            >
+              aria-label="VAT treatment"
+              class="block w-full rounded-md border border-steel-200 px-2 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500">
               @for (treatment of vatTreatments; track treatment.value) {
                 <option [value]="treatment.value">{{ treatment.label }}</option>
               }
