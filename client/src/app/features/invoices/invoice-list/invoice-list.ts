@@ -31,8 +31,7 @@ export class InvoiceList {
 
   filterInvoices(invoices: Invoice[], searchTerm: string | null) {
     if (searchTerm) {
-        const filteredInvoices = invoices.filter(invoice => invoice.number?.includes(searchTerm));
-        return filteredInvoices;
+        return invoices.filter(invoice => invoice.number?.toLowerCase().includes(searchTerm.toLowerCase()));  
     }
     return invoices;
   }

@@ -1,7 +1,6 @@
 <div class="mb-6 flex items-center justify-between">
   <div>
     <h1 class="text-2xl font-medium text-steel-900">Invoices</h1>
-    <p class="mt-1 text-sm text-steel-500">Everything you've drafted, issued and sent.</p>
   </div>
   <a
     routerLink="/invoices/new"
@@ -10,11 +9,10 @@
     New invoice
   </a>
 </div>
-<div class="col-span-4">
- <input type="text" formControlName="searchByNumber" placeholder="Search by number" [formControl]="searchByNumber"
+
+ <input type="text" placeholder="Search by number" [formControl]="searchByNumber"
   class="block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"/>
   <br>
-</div>
 @if (loading()) {
   <p class="text-sm text-steel-500">Loading…</p>
 } @else if (invoices().length === 0) {
