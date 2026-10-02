@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
-import { switchMap } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
 import { VatStatus } from '@core/models/auth.model';
 
@@ -43,13 +42,16 @@ export class GetStarted {
     this.errorMessage.set(null);
 
     this.auth
-      .registerTenant({
-        companyName,
-        vatStatus,
-        vatNumber: vatStatus === 'Registered' ? vatNumber || null : null,
-        tradingName: null,
+      .register({
+        company: {
+          companyName,
+          vatStatus,
+          vatNumber: vatStatus === 'Registered' ? vatNumber || null : null,
+          tradingName: null,
+        },
+        email,
+        password,
       })
-      .pipe(switchMap((tenant) => this.auth.register({ tenantId: tenant.id, email, password })))
       .subscribe({
         next: () => this.router.navigateByUrl('/dashboard'),
         error: () => {
