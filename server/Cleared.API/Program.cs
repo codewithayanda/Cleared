@@ -125,3 +125,6 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.Run();
+
+// Lets the integration tests' WebApplicationFactory see the top-level entry point.
+public partial class Program;

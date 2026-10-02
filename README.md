@@ -46,15 +46,16 @@ dotnet test Cleared.slnx
 | `Cleared.Domain.Tests` | Pure logic: VAT, money, rounding, state transitions. No I/O. |
 | `Cleared.Application.Tests` | Use-case orchestration against faked ports. |
 | `Cleared.Architecture.Tests` | Dependency direction and layering rules. |
-| `Cleared.Integration.Tests` | Concurrency behaviour that needs a real database. |
+| `Cleared.Integration.Tests` | Real HTTP requests through the whole API, and concurrency behaviour, against a real database. |
 
 Integration tests run against a real PostgreSQL, never the EF Core in-memory provider,
 which cannot evaluate row-level security, transactions or row locks. That package is
 blocked at build time in `server/Directory.Build.targets`.
 
-`Cleared.Integration.Tests` reads `ConnectionStrings:Cleared` from user secrets locally and
-from the environment in CI, and applies migrations itself. Point it at a scratch database,
-not one whose contents you care about.
+`Cleared.Integration.Tests` starts its own throwaway PostgreSQL container with Testcontainers,
+applies the migrations to it, and discards it afterwards. It never reads user secrets or
+touches a database you care about. It needs a container runtime: Docker, or Podman with its
+machine running (`podman machine start`).
 
 ## Configuration
 
