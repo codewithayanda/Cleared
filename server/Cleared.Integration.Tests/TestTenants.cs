@@ -27,27 +27,24 @@ public static class ClearedApiFactoryExtensions
     public static HttpClient CreateAnonymousClient(this ClearedApiFactory factory) =>
         factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-    // Registers through the real endpoints, so tests take the same path a user does.
+    // Registers through the real endpoint, so tests take the same path a user does.
     public static async Task<TestTenant> CreateTenantAsync(this ClearedApiFactory factory)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
+        var email = $"owner-{suffix}@example.test";
         using var anonymous = factory.CreateAnonymousClient();
 
-        var tenantResponse = await anonymous.PostAsJsonAsync(
-            "/api/v1/tenants",
-            new RegisterTenantRequest($"Test Co {suffix}", VatStatus.NotRegistered, null, null),
+        var response = await anonymous.PostAsJsonAsync(
+            "/api/v1/auth/register",
+            new RegisterRequest(
+                new RegisterTenantRequest($"Test Co {suffix}", VatStatus.NotRegistered, null, null), email, Password),
             ApiJson.Options);
-        tenantResponse.EnsureSuccessStatusCode();
-        var tenant = (await tenantResponse.Content.ReadFromJsonAsync<TenantResponse>(ApiJson.Options))!;
-
-        var email = $"owner-{suffix}@example.test";
-        var registerResponse = await anonymous.PostAsJsonAsync(
-            "/api/v1/auth/register", new RegisterUserRequest(tenant.Id, email, Password), ApiJson.Options);
-        registerResponse.EnsureSuccessStatusCode();
-        var auth = (await registerResponse.Content.ReadFromJsonAsync<AuthResponse>(ApiJson.Options))!;
+        response.EnsureSuccessStatusCode();
+        var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>(ApiJson.Options))!;
 
         var client = factory.CreateAnonymousClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var tenant = (await client.GetFromJsonAsync<TenantResponse>("/api/v1/tenants/me", ApiJson.Options))!;
 
         return new TestTenant(tenant.Id, email, Password, client);
     }

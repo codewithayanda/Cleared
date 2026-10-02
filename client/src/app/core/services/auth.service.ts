@@ -3,13 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
 import { environment } from '@env';
-import {
-  AuthResponse,
-  LoginRequest,
-  RegisterTenantRequest,
-  RegisterUserRequest,
-} from '@core/models/auth.model';
-import { TenantResponse } from '@core/models/tenant.model';
+import { AuthResponse, LoginRequest, RegisterRequest } from '@core/models/auth.model';
 
 interface DecodedClaims {
   sub: string;
@@ -34,11 +28,7 @@ export class AuthService {
     return this.accessToken();
   }
 
-  registerTenant(request: RegisterTenantRequest): Observable<TenantResponse> {
-    return this.http.post<TenantResponse>(`${environment.apiUrl}/tenants`, request);
-  }
-
-  register(request: RegisterUserRequest): Observable<AuthResponse> {
+  register(request: RegisterRequest): Observable<AuthResponse> {
     return this.http
       .post<AuthResponse>(`${environment.apiUrl}/auth/register`, request)
       .pipe(tap((response) => this.setSession(response)));

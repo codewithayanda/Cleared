@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { environment } from '@env';
+import { RegisterRequest } from '@core/models/auth.model';
 import { AuthService } from './auth.service';
 
 // A real (expired, harmless) HS256 token shaped like the ones the API issues, so decoding
@@ -12,6 +13,12 @@ const SAMPLE_TOKEN =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' +
   '.eyJzdWIiOiJ1MSIsInRlbmFudF9pZCI6InRlbmFudC00MiIsImV4cCI6MX0' +
   '.dummy-signature';
+
+const REGISTRATION: RegisterRequest = {
+  company: { companyName: 'Acme', vatStatus: 'NotRegistered', vatNumber: null, tradingName: null },
+  email: 'a@b.co.za',
+  password: 'secret1234',
+};
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -52,12 +59,23 @@ describe('AuthService', () => {
   });
 
   it('register also establishes a session from the returned token', () => {
-    service
-      .register({ tenantId: 'tenant-42', email: 'a@b.co.za', password: 'secret1234' })
-      .subscribe();
+    service.register(REGISTRATION).subscribe();
 
     httpMock.expectOne(`${environment.apiUrl}/auth/register`).flush({ accessToken: SAMPLE_TOKEN });
 
     expect(service.isAuthenticated()).toBe(true);
+  });
+
+  it('register sends the company and credentials, never a tenant id', () => {
+    service.register(REGISTRATION).subscribe();
+
+    const request = httpMock.expectOne(`${environment.apiUrl}/auth/register`);
+
+    expect(Object.keys(request.request.body as object).sort()).toEqual([
+      'company',
+      'email',
+      'password',
+    ]);
+    request.flush({ accessToken: SAMPLE_TOKEN });
   });
 });

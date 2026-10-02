@@ -7,8 +7,8 @@ export interface RegisterTenantRequest {
   tradingName: string | null;
 }
 
-export interface RegisterUserRequest {
-  tenantId: string;
+export interface RegisterRequest {
+  company: RegisterTenantRequest;
   email: string;
   password: string;
 }

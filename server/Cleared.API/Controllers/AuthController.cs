@@ -1,5 +1,6 @@
 using Cleared.Application.Abstractions;
 using Cleared.Application.Auth;
+using Cleared.Application.Tenants;
 using Cleared.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -14,16 +15,25 @@ namespace Cleared.API.Controllers;
 public sealed class AuthController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
-    ITokenService tokenService) : ControllerBase
+    ITokenService tokenService,
+    RegisterTenantService registerTenantService,
+    IUnitOfWork unitOfWork) : ControllerBase
 {
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponse>> Register(RegisterUserRequest request)
+    public async Task<ActionResult<AuthResponse>> Register(
+        RegisterRequest request, CancellationToken cancellationToken)
     {
+        // The company and its Owner are created together or not at all. A duplicate email or a
+        // weak password must not leave an empty company behind.
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var tenant = await registerTenantService.RegisterAsync(request.Company, cancellationToken);
+
         var user = new ApplicationUser
         {
             UserName = request.Email,
             Email = request.Email,
-            TenantId = request.TenantId,
+            TenantId = tenant.Id,
             Role = "Owner",
         };
 
@@ -32,6 +42,8 @@ public sealed class AuthController(
         {
             return BadRequest(new { title = "Registration failed.", errors = result.Errors.Select(e => e.Description) });
         }
+
+        await transaction.CommitAsync(cancellationToken);
 
         var token = tokenService.IssueAccessToken(user.Id, user.TenantId, user.Role);
 
