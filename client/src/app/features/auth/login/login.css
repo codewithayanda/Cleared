@@ -1,0 +1,85 @@
+/* Component-scoped styles for the login screen. Angular compiles this file in
+   isolation, so `@reference` pulls in the global theme (steel/gold tokens) to let
+   `@apply` resolve the project's custom utilities. */
+@reference '../../../../styles.css';
+
+.login-page {
+  @apply flex min-h-screen items-center justify-center px-4;
+}
+
+.login-card {
+  @apply w-full max-w-sm rounded-xl bg-white p-8 shadow-xl shadow-black/20;
+}
+
+.login-brand {
+  @apply mb-6 flex items-center gap-2;
+}
+
+.login-brand-icon {
+  @apply size-7 text-gold-600;
+}
+
+.login-brand-name {
+  @apply text-xl font-medium tracking-tight text-steel-900;
+}
+
+.login-title {
+  @apply text-lg font-medium text-steel-900;
+}
+
+.login-subtitle {
+  @apply mt-1 text-sm text-steel-500;
+}
+
+.login-form {
+  @apply mt-6 space-y-4;
+}
+
+.login-label {
+  @apply block text-sm font-medium text-steel-700;
+}
+
+.login-input,
+.login-password-input {
+  @apply block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500;
+}
+
+.login-input {
+  @apply mt-1;
+}
+
+.login-password {
+  @apply relative mt-1;
+}
+
+.login-password-input {
+  @apply pr-10;
+}
+
+.login-password-toggle {
+  @apply absolute inset-y-0 right-0 flex items-center px-3 text-steel-400 hover:text-steel-600 focus:text-gold-600 focus:outline-none;
+}
+
+.login-password-toggle-icon {
+  @apply size-5;
+}
+
+.login-error {
+  @apply mt-1 text-xs text-status-overdue;
+}
+
+.login-alert {
+  @apply rounded-md bg-red-50 px-3 py-2 text-sm text-status-overdue;
+}
+
+.login-submit {
+  @apply w-full rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700 disabled:opacity-60;
+}
+
+.login-footer {
+  @apply mt-6 text-center text-sm text-steel-500;
+}
+
+.login-footer-link {
+  @apply font-medium text-gold-600 hover:text-gold-700;
+}

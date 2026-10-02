@@ -1,13 +1,13 @@
-<div class="metallic-chrome flex min-h-screen items-center justify-center px-4">
-  <div class="w-full max-w-sm rounded-xl bg-white p-8 shadow-xl shadow-black/20">
-    <div class="mb-6 flex items-center gap-2">
+<div class="metallic-chrome login-page">
+  <div class="login-card">
+    <div class="login-brand">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
         stroke-width="1.5"
-        class="size-7 text-gold-600"
+        class="login-brand-icon"
       >
         <path
           stroke-linecap="round"
@@ -15,61 +15,101 @@
           d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
         />
       </svg>
-      <span class="text-xl font-medium tracking-tight text-steel-900">Cleared</span>
+      <span class="login-brand-name">Cleared</span>
     </div>
 
-    <h1 class="text-lg font-medium text-steel-900">Sign in</h1>
-    <p class="mt-1 text-sm text-steel-500">Welcome back. Enter your details to continue.</p>
+    <h1 class="login-title">Sign in</h1>
+    <p class="login-subtitle">Welcome back. Enter your details to continue.</p>
 
-    <form [formGroup]="form" (ngSubmit)="submit()" class="mt-6 space-y-4">
+    <form [formGroup]="form" (ngSubmit)="submit()" class="login-form">
       <div>
-        <label for="email" class="block text-sm font-medium text-steel-700">Email</label>
+        <label for="email" class="login-label">Email</label>
         <input
           id="email"
           type="email"
           formControlName="email"
           autocomplete="email"
-          class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+          class="login-input"
         />
         @if (form.controls.email.invalid && form.controls.email.touched) {
-          <p class="mt-1 text-xs text-status-overdue">Enter a valid email address.</p>
+          <p class="login-error">Enter a valid email address.</p>
         }
       </div>
 
       <div>
-        <label for="password" class="block text-sm font-medium text-steel-700">Password</label>
-        <input
-          id="password"
-          type="password"
-          formControlName="password"
-          autocomplete="current-password"
-          class="mt-1 block w-full rounded-md border border-steel-200 px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
-        />
+        <label for="password" class="login-label">Password</label>
+        <div class="login-password">
+          <input
+            id="password"
+            [type]="showPassword() ? 'text' : 'password'"
+            formControlName="password"
+            autocomplete="current-password"
+            class="login-password-input"
+          />
+          <button
+            type="button"
+            (click)="togglePassword()"
+            [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+            [attr.aria-pressed]="showPassword()"
+            class="login-password-toggle"
+          >
+            @if (showPassword()) {
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                class="login-password-toggle-icon"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"
+                />
+              </svg>
+            } @else {
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                class="login-password-toggle-icon"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                />
+              </svg>
+            }
+          </button>
+        </div>
         @if (form.controls.password.invalid && form.controls.password.touched) {
-          <p class="mt-1 text-xs text-status-overdue">Enter your password.</p>
+          <p class="login-error">Enter your password.</p>
         }
       </div>
 
       @if (errorMessage()) {
-        <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-status-overdue">
+        <p class="login-alert">
           {{ errorMessage() }}
         </p>
       }
 
-      <button
-        type="submit"
-        [disabled]="submitting()"
-        class="w-full rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700 disabled:opacity-60"
-      >
+      <button type="submit" [disabled]="submitting()" class="login-submit">
         {{ submitting() ? 'Signing in…' : 'Sign in' }}
       </button>
     </form>
 
-    <p class="mt-6 text-center text-sm text-steel-500">
+    <p class="login-footer">
       New to Cleared?
-      <a routerLink="/get-started" class="font-medium text-gold-600 hover:text-gold-700"
-        >Create an account</a
-      >
+      <a routerLink="/get-started" class="login-footer-link">Create an account</a>
     </p>
   </div>
 </div>

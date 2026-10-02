@@ -9,6 +9,7 @@ import { AuthService } from '@core/services/auth.service';
   imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.html',
+  styleUrl: './login.css',
 })
 export class Login {
   private readonly fb = inject(FormBuilder);
@@ -17,6 +18,11 @@ export class Login {
 
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly showPassword = signal(false);
+
+  protected togglePassword(): void {
+    this.showPassword.update((shown) => !shown);
+  }
 
   protected readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
