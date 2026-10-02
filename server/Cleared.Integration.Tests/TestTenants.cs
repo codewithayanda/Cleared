@@ -1,0 +1,54 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Cleared.Application.Auth;
+using Cleared.Application.Tenants;
+using Cleared.Domain.Tenancy;
+using Microsoft.AspNetCore.Mvc.Testing;
+
+namespace Cleared.Integration.Tests;
+
+public sealed record TestTenant(Guid TenantId, string Email, string Password, HttpClient Client);
+
+public static class ApiJson
+{
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
+}
+
+public static class ClearedApiFactoryExtensions
+{
+    private const string Password = "Integration-Tests-1!";
+
+    // Redirects stay off so an unexpected 3xx fails a test instead of being followed.
+    public static HttpClient CreateAnonymousClient(this ClearedApiFactory factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+    // Registers through the real endpoints, so tests take the same path a user does.
+    public static async Task<TestTenant> CreateTenantAsync(this ClearedApiFactory factory)
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        using var anonymous = factory.CreateAnonymousClient();
+
+        var tenantResponse = await anonymous.PostAsJsonAsync(
+            "/api/v1/tenants",
+            new RegisterTenantRequest($"Test Co {suffix}", VatStatus.NotRegistered, null, null),
+            ApiJson.Options);
+        tenantResponse.EnsureSuccessStatusCode();
+        var tenant = (await tenantResponse.Content.ReadFromJsonAsync<TenantResponse>(ApiJson.Options))!;
+
+        var email = $"owner-{suffix}@example.test";
+        var registerResponse = await anonymous.PostAsJsonAsync(
+            "/api/v1/auth/register", new RegisterUserRequest(tenant.Id, email, Password), ApiJson.Options);
+        registerResponse.EnsureSuccessStatusCode();
+        var auth = (await registerResponse.Content.ReadFromJsonAsync<AuthResponse>(ApiJson.Options))!;
+
+        var client = factory.CreateAnonymousClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+
+        return new TestTenant(tenant.Id, email, Password, client);
+    }
+}
