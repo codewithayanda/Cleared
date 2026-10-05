@@ -57,6 +57,11 @@ applies the migrations to it, and discards it afterwards. It never reads user se
 touches a database you care about. It needs a container runtime: Docker, or Podman with its
 machine running (`podman machine start`).
 
+Every endpoint that touches tenant data needs an entry in `IsolationCases.All`, which makes a
+second tenant attack the first one's data. `EndpointGuardTests` reads the routing table and
+fails when an endpoint has neither an entry nor a reason to be exempt, so a new route cannot
+skip the isolation check.
+
 ## Configuration
 
 No secrets in `appsettings.json`. Local development uses `dotnet user-secrets`;

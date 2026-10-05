@@ -28,6 +28,13 @@ public sealed class InvoiceService(
         var tenant = await tenantRepository.GetByIdAsync(tenantId, cancellationToken)
             ?? throw new InvalidOperationException("The current tenant no longer exists.");
 
+        // The id comes from the request body, so resolve it under this tenant. Another
+        // tenant's customer and a missing one get the same answer.
+        if (await customerRepository.GetByIdAsync(tenantId, request.CustomerId, cancellationToken) is null)
+        {
+            throw new ArgumentException("The customer does not exist.", nameof(request));
+        }
+
         var invoice = Invoice.CreateDraft(Guid.NewGuid(), tenantId, request.CustomerId);
 
         foreach (var line in request.Lines)

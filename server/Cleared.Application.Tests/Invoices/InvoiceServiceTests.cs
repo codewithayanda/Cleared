@@ -248,4 +248,28 @@ public class InvoiceServiceTests
         Assert.Equal("0.00", invoices.Single(i => i.Id == untouchedInvoice.Id).AmountPaid);
         Assert.Equal("230.00", invoices.Single(i => i.Id == untouchedInvoice.Id).BalanceDue);
     }
+
+    [Fact]
+    public async Task CreateAsync_CustomerBelongingToAnotherTenant_ThrowsAndCreatesNothing()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var otherTenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var othersCustomerId = SeedCustomer(otherTenantId);
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync(
+            tenantId, RequestFor(othersCustomerId, 100m, VatTreatment.Standard), CancellationToken.None));
+
+        Assert.Empty(await service.ListAsync(tenantId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CreateAsync_UnknownCustomer_Throws()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync(
+            tenantId, RequestFor(Guid.NewGuid(), 100m, VatTreatment.Standard), CancellationToken.None));
+    }
 }
