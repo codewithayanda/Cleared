@@ -20,7 +20,8 @@ public class PaymentServiceTests
     private readonly FakeAuditLogRepository _auditLogRepository = new();
 
     private PaymentService CreateService() => new(
-        _invoiceRepository, _paymentRepository, _auditLogRepository, new FakeUnitOfWork(),
+        _invoiceRepository, new FakeInvoiceLock(_invoiceRepository), _paymentRepository,
+        _auditLogRepository, new FakeUnitOfWork(),
         new FakeCurrentUserContext(_userId), new FakeClock(_receivedAt));
 
     private Invoice SeedIssuedInvoice(decimal unitPrice = 1000m)

@@ -60,6 +60,10 @@ dotnet_style_collection_initializer = true:suggestion
 dotnet_diagnostic.CA2007.severity = none
 dotnet_diagnostic.CA1848.severity = none
 
+# SQL must be a constant with named parameters, never built from values. Both are off by default.
+dotnet_diagnostic.CA2100.severity = error
+dotnet_diagnostic.EF1002.severity = error
+
 dotnet_naming_rule.interfaces_start_with_i.severity = warning
 dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbols
 dotnet_naming_rule.interfaces_start_with_i.style = prefix_i_pascal

@@ -2,6 +2,7 @@ using Cleared.Application.Abstractions;
 using Cleared.Application.Auth;
 using Cleared.Application.Tenants;
 using Cleared.Infrastructure.Identity;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,6 +12,7 @@ namespace Cleared.API.Controllers;
 // port: the API project is already the composition root for Identity concerns, the same way
 // Program.cs configures the DbContext directly.
 [ApiController]
+[AllowAnonymous]
 [Route("api/v1/auth")]
 public sealed class AuthController(
     UserManager<ApplicationUser> userManager,

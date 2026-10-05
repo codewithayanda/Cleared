@@ -66,6 +66,14 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
         Task.FromResult<IReadOnlyList<Invoice>>(_invoices.Values.Where(i => i.TenantId == tenantId).ToList());
 }
 
+// Nothing to wait for in a single-threaded test. Answers like the real lock: true only for
+// an invoice the tenant can see.
+internal sealed class FakeInvoiceLock(IInvoiceRepository invoices) : IInvoiceLock
+{
+    public async Task<bool> AcquireAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken) =>
+        await invoices.GetByIdAsync(tenantId, invoiceId, cancellationToken) is not null;
+}
+
 internal sealed class FakeCreditNoteRepository : ICreditNoteRepository
 {
     private readonly List<CreditNote> _creditNotes = [];

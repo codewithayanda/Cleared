@@ -1,4 +1,5 @@
-// Enforces the comment conventions in CLAUDE.md, so the house voice doesn't drift back.
+// Fails on em dashes and on comment blocks longer than four lines in hand-written files,
+// so comments stay short and the prose stays consistent.
 // Run: node scripts/check-comment-style.mjs
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -24,7 +25,7 @@ const SCAN = [
   { dir: '.github', exts: ['.yml'] },
 ];
 
-const EXTRA_FILES = ['README.md', 'CLAUDE.md', 'client/README.md'];
+const EXTRA_FILES = ['README.md', 'client/README.md'];
 
 // EF Core writes these; they are not hand-authored.
 const GENERATED = /(\.Designer\.cs|ModelSnapshot\.cs)$/;
@@ -99,7 +100,7 @@ for (const file of files) {
 }
 
 if (problems.length > 0) {
-  console.error(`Comment style: ${problems.length} problem(s). See CLAUDE.md.\n`);
+  console.error(`Comment style: ${problems.length} problem(s). No em dashes; comment blocks of at most ${MAX_COMMENT_LINES} lines.\n`);
   for (const problem of problems) console.error(`  ${problem}`);
   process.exit(1);
 }

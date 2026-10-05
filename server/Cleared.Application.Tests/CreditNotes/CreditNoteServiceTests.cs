@@ -18,7 +18,8 @@ public class CreditNoteServiceTests
     private readonly FakeAuditLogRepository _auditLogRepository = new();
 
     private CreditNoteService CreateService() => new(
-        _invoiceRepository, _creditNoteRepository, new FakeCreditNoteNumberAllocator(),
+        _invoiceRepository, new FakeInvoiceLock(_invoiceRepository), _creditNoteRepository,
+        new FakeCreditNoteNumberAllocator(),
         _auditLogRepository, new FakeUnitOfWork(), new FakeCurrentUserContext(Guid.NewGuid()),
         new FakeClock(_today));
 

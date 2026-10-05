@@ -1,5 +1,6 @@
 using System.Globalization;
 using Cleared.Application.Abstractions;
+using Cleared.Application.Common;
 using Cleared.Domain.Auditing;
 using Cleared.Domain.Common;
 using Cleared.Domain.Payments;
@@ -8,6 +9,7 @@ namespace Cleared.Application.Payments;
 
 public sealed class PaymentService(
     IInvoiceRepository invoiceRepository,
+    IInvoiceLock invoiceLock,
     IPaymentRepository paymentRepository,
     IAuditLogRepository auditLogRepository,
     IUnitOfWork unitOfWork,
@@ -17,13 +19,19 @@ public sealed class PaymentService(
     public async Task<PaymentResponse?> RecordAsync(
         Guid tenantId, Guid invoiceId, RecordPaymentRequest request, CancellationToken cancellationToken)
     {
-        var invoice = await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken);
+        // The invoice row lock serialises concurrent payments, so each one sees the total the
+        // last one committed. See InvoiceConcurrencyTests.
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var invoice = await invoiceLock.AcquireAsync(tenantId, invoiceId, cancellationToken)
+            ? await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken)
+            : null;
         if (invoice is null)
         {
             return null;
         }
 
-        var amount = Money.Zar(decimal.Parse(request.Amount, CultureInfo.InvariantCulture));
+        var amount = Money.Zar(MoneyText.Parse(request.Amount, "Amount"));
 
         // The running total, including this payment: RecordPaymentTotal needs it to decide
         // between PartiallyPaid and Paid, and to reject an overpayment.
@@ -42,11 +50,8 @@ public sealed class PaymentService(
             clock.UtcNow, $"Recorded a manual payment of R{FormatMoney(amount)}. Invoice now {invoice.Status}.");
         await auditLogRepository.AddAsync(auditEntry, cancellationToken);
 
-        // One SaveChangesAsync is atomic across the payment insert, the status update and
-        // the audit entry, so no explicit transaction is needed for the write itself.
-        // TODO: the read-then-write above is not serialised. Two concurrent payments can
-        // both pass RecordPaymentTotal and overpay the invoice. Needs SELECT ... FOR UPDATE.
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return ToResponse(payment);
     }

@@ -19,7 +19,8 @@ public class InvoiceServiceTests
     private readonly FakePaymentRepository _paymentRepository = new();
 
     private InvoiceService CreateService() => new(
-        _invoiceRepository, _tenantRepository, _customerRepository, new FakeVatRateRepository(),
+        _invoiceRepository, new FakeInvoiceLock(_invoiceRepository), _tenantRepository,
+        _customerRepository, new FakeVatRateRepository(),
         new FakeInvoiceNumberAllocator(), _auditLogRepository, _paymentRepository, new FakeInvoicePdfRenderer(),
         new FakeUnitOfWork(), new FakeCurrentUserContext(Guid.NewGuid()), new FakeClock(_today));
 

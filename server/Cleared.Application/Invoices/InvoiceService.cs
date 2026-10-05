@@ -1,5 +1,5 @@
-using System.Globalization;
 using Cleared.Application.Abstractions;
+using Cleared.Application.Common;
 using Cleared.Application.Customers;
 using Cleared.Application.Tenants;
 using Cleared.Domain.Auditing;
@@ -11,6 +11,7 @@ namespace Cleared.Application.Invoices;
 
 public sealed class InvoiceService(
     IInvoiceRepository invoiceRepository,
+    IInvoiceLock invoiceLock,
     ITenantRepository tenantRepository,
     ICustomerRepository customerRepository,
     IVatRateRepository vatRateRepository,
@@ -39,7 +40,7 @@ public sealed class InvoiceService(
 
         foreach (var line in request.Lines)
         {
-            var unitPrice = Money.Zar(decimal.Parse(line.UnitPrice, CultureInfo.InvariantCulture));
+            var unitPrice = Money.Zar(MoneyText.Parse(line.UnitPrice, "Unit price"));
 
             // A tenant that is not VAT registered cannot charge output VAT, which overrides
             // whatever treatment the client requested.
@@ -92,7 +93,15 @@ public sealed class InvoiceService(
     public async Task<InvoiceResponse?> IssueAsync(
         Guid tenantId, Guid invoiceId, IssueInvoiceRequest request, CancellationToken cancellationToken)
     {
-        var invoice = await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken);
+        // Claiming the number and saving the invoice must succeed or fail together, or a save
+        // failure after the claim leaves a permanent gap in the sequence. The invoice row lock
+        // also stops two callers issuing one draft, which would burn a number and overwrite
+        // the first. See InvoiceConcurrencyTests.
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var invoice = await invoiceLock.AcquireAsync(tenantId, invoiceId, cancellationToken)
+            ? await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken)
+            : null;
         if (invoice is null)
         {
             return null;
@@ -117,10 +126,6 @@ public sealed class InvoiceService(
             // draft untouched and nothing is persisted.
             ValidateTaxInvoiceFields(tenant, customer, invoice.ProspectiveTotal(vatRate.Rate));
         }
-
-        // Claiming the number and saving the invoice must succeed or fail together, or a
-        // save failure after the claim leaves a permanent gap in the sequence.
-        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         var number = await numberAllocator.AllocateAsync(tenantId, request.IssueDate.Year, cancellationToken);
         invoice.Issue(number, request.IssueDate, supplyDate, request.DueDate, documentType, vatRate.Rate);

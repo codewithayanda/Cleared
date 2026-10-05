@@ -8,6 +8,7 @@ namespace Cleared.Application.CreditNotes;
 
 public sealed class CreditNoteService(
     IInvoiceRepository invoiceRepository,
+    IInvoiceLock invoiceLock,
     ICreditNoteRepository creditNoteRepository,
     ICreditNoteNumberAllocator numberAllocator,
     IAuditLogRepository auditLogRepository,
@@ -21,7 +22,15 @@ public sealed class CreditNoteService(
     public async Task<CreditNoteResponse?> CreateAsync(
         Guid tenantId, Guid invoiceId, CreateCreditNoteRequest request, CancellationToken cancellationToken)
     {
-        var invoice = await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken);
+        // The transaction covers the credited-quantity read, the number claim and the save.
+        // The invoice row lock serialises concurrent credits, so each one sees what the last
+        // committed, and a failure after the number claim leaves no gap. See
+        // InvoiceConcurrencyTests and InvoiceNumberAllocator.
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var invoice = await invoiceLock.AcquireAsync(tenantId, invoiceId, cancellationToken)
+            ? await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken)
+            : null;
         if (invoice is null)
         {
             return null;
@@ -43,8 +52,6 @@ public sealed class CreditNoteService(
 
         // How much of each original line a prior credit note already covered, so a second
         // note against the same invoice cannot credit more than what's left.
-        // TODO: this read-then-write is not serialised. READ COMMITTED lets two concurrent
-        // notes each credit the full remainder. Needs SELECT ... FOR UPDATE on the invoice.
         var alreadyCredited = existingCreditNotes
             .SelectMany(creditNote => creditNote.Lines)
             .GroupBy(line => line.InvoiceLineItemId)
@@ -72,10 +79,6 @@ public sealed class CreditNoteService(
                 originalLine.Id, originalLine.Description, lineRequest.Quantity,
                 originalLine.UnitPrice, originalLine.VatTreatment));
         }
-
-        // Claiming the number and saving the credit note must succeed or fail together.
-        // See InvoiceNumberAllocator.
-        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         var number = await numberAllocator.AllocateAsync(tenantId, clock.Today.Year, cancellationToken);
 

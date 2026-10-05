@@ -77,16 +77,19 @@ public class RegistrationTests(ClearedApiFactory factory)
     }
 
     [Fact]
-    public async Task The_anonymous_tenant_endpoint_no_longer_exists()
+    public async Task The_standalone_tenant_endpoint_no_longer_exists()
     {
-        using var client = factory.CreateAnonymousClient();
+        var company = new RegisterTenantRequest("Sneaky Co", VatStatus.NotRegistered, null, null);
 
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/tenants",
-            new RegisterTenantRequest("Sneaky Co", VatStatus.NotRegistered, null, null),
-            ApiJson.Options);
+        // Default deny answers an anonymous caller with 401 before routing says anything.
+        using var anonymous = factory.CreateAnonymousClient();
+        var anonymousResponse = await anonymous.PostAsJsonAsync("/api/v1/tenants", company, ApiJson.Options);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        // A signed-in user gets past that, and finds the route is gone.
+        var owner = await factory.CreateTenantAsync();
+        var ownerResponse = await owner.Client.PostAsJsonAsync("/api/v1/tenants", company, ApiJson.Options);
+        Assert.Equal(HttpStatusCode.NotFound, ownerResponse.StatusCode);
     }
 
     [Fact]

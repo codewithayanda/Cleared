@@ -14,6 +14,7 @@ using Cleared.Infrastructure.Identity;
 using Cleared.Infrastructure.Persistence;
 using Cleared.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -66,7 +67,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+// Default deny: an endpoint with no [Authorize] still needs a token. Anything meant to be
+// public must say [AllowAnonymous] or .AllowAnonymous(). See DefaultDenyTests.
+builder.Services.AddAuthorization(options =>
+    options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddHealthChecks()
@@ -82,6 +86,7 @@ builder.Services.AddScoped<ICreditNoteRepository, CreditNoteRepository>();
 builder.Services.AddScoped<IVatRateRepository, VatRateRepository>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+builder.Services.AddScoped<IInvoiceLock, InvoiceLock>();
 builder.Services.AddScoped<IInvoiceNumberAllocator, InvoiceNumberAllocator>();
 builder.Services.AddScoped<ICreditNoteNumberAllocator, CreditNoteNumberAllocator>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -103,8 +108,8 @@ app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
 app.UseHttpsRedirection();
@@ -114,15 +119,16 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Probes from the load balancer carry no token, and neither endpoint returns any data.
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = _ => false,
-});
+}).AllowAnonymous();
 
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready"),
-});
+}).AllowAnonymous();
 
 app.Run();
 
