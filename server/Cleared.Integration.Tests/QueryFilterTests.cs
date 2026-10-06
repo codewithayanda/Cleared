@@ -17,6 +17,7 @@ public class QueryFilterTests(ClearedApiFactory factory)
         [typeof(ApplicationUser)] = "login looks the user up by email before any tenant is known",
         [typeof(InvoiceNumberSequence)] = "a counter reached only through raw SQL that names the tenant",
         [typeof(CreditNoteNumberSequence)] = "a counter reached only through raw SQL that names the tenant",
+        [typeof(IdempotencyRecord)] = "a record reached only through raw SQL that names the tenant",
     };
 
     [Fact]

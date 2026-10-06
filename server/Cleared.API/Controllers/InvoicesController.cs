@@ -1,22 +1,32 @@
+using Cleared.API.Idempotency;
 using Cleared.Application.Abstractions;
+using Cleared.Application.Idempotency;
 using Cleared.Application.Invoices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Cleared.API.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/v1/invoices")]
-public sealed class InvoicesController(InvoiceService invoiceService, ITenantContext tenantContext) : ControllerBase
+public sealed class InvoicesController(
+    InvoiceService invoiceService, IdempotentExecutor idempotent, ITenantContext tenantContext) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<InvoiceResponse>> Create(
-        CreateInvoiceRequest request, CancellationToken cancellationToken)
+        CreateInvoiceRequest request,
+        [FromHeader(Name = IdempotencyHeader.Name), BindRequired] Guid idempotencyKey,
+        CancellationToken cancellationToken)
     {
-        var invoice = await invoiceService.CreateAsync(tenantContext.TenantId, request, cancellationToken);
+        var result = await idempotent.ExecuteAsync(
+            tenantContext.TenantId, idempotencyKey, "CreateInvoice", request,
+            () => invoiceService.CreateAsync(tenantContext.TenantId, request, cancellationToken),
+            cancellationToken);
+        Response.MarkReplayed(result);
 
-        return Created($"/api/v1/invoices/{invoice.Id}", invoice);
+        return Created($"/api/v1/invoices/{result.Value.Id}", result.Value);
     }
 
     [HttpGet("{id:guid}")]
@@ -35,11 +45,18 @@ public sealed class InvoicesController(InvoiceService invoiceService, ITenantCon
 
     [HttpPost("{id:guid}/issue")]
     public async Task<ActionResult<InvoiceResponse>> Issue(
-        Guid id, IssueInvoiceRequest request, CancellationToken cancellationToken)
+        Guid id,
+        IssueInvoiceRequest request,
+        [FromHeader(Name = IdempotencyHeader.Name), BindRequired] Guid idempotencyKey,
+        CancellationToken cancellationToken)
     {
-        var invoice = await invoiceService.IssueAsync(tenantContext.TenantId, id, request, cancellationToken);
+        var result = await idempotent.ExecuteAsync(
+            tenantContext.TenantId, idempotencyKey, "IssueInvoice", new { id, request },
+            () => invoiceService.IssueAsync(tenantContext.TenantId, id, request, cancellationToken),
+            cancellationToken);
+        Response.MarkReplayed(result);
 
-        return invoice is null ? NotFound() : Ok(invoice);
+        return result.Value is null ? NotFound() : Ok(result.Value);
     }
 
     [HttpGet("{id:guid}/pdf")]

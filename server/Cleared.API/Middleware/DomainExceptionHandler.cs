@@ -1,3 +1,4 @@
+using Cleared.Application.Idempotency;
 using Cleared.Domain.Invoicing;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,7 @@ public sealed class DomainExceptionHandler(IHostEnvironment environment) : IExce
             // A well-formed request blocked by a legal or business rule about the data
             // itself, not malformed input (400) or a state conflict (409).
             TaxInvoiceValidationException => (StatusCodes.Status422UnprocessableEntity, "This tax invoice is missing required fields."),
+            IdempotencyKeyReusedException => (StatusCodes.Status422UnprocessableEntity, "This Idempotency-Key was already used for a different request."),
             ArgumentException => (StatusCodes.Status400BadRequest, "Invalid request."),
             InvalidOperationException => (StatusCodes.Status409Conflict, "The request conflicts with the current state."),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred."),

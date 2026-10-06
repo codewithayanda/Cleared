@@ -76,3 +76,4 @@ deployed environments read from AWS Secrets Manager.
 - Shared build settings live in `server/Directory.Build.props`. Warnings are errors.
 - Money is `decimal` in the domain and a **string** on the wire, never a JSON number.
 - Tax dates are `DateOnly` in SAST. Instants are UTC.
+- Every POST that creates or moves money takes an `Idempotency-Key` header and runs through `IdempotentExecutor`, so a repeated request returns the first answer instead of doing the work twice. `IdempotencyGuardTests` fails a write endpoint that skips it.

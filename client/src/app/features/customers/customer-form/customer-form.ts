@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { CustomerService } from '@core/services/customer.service';
+import { IdempotencyKey } from '@core/utils/idempotency-key';
 
 @Component({
   selector: 'app-customer-form',
@@ -13,6 +14,9 @@ export class CustomerForm {
   private readonly fb = inject(FormBuilder);
   private readonly customerService = inject(CustomerService);
   private readonly router = inject(Router);
+
+  // Reused by every retry of this form. The page is left on success, so it is never renewed.
+  private readonly idempotencyKey = new IdempotencyKey();
 
   protected readonly submitting = signal(false);
 
@@ -34,12 +38,15 @@ export class CustomerForm {
     this.submitting.set(true);
 
     this.customerService
-      .create({
-        name,
-        email: email || null,
-        vatNumber: vatNumber || null,
-        address: address || null,
-      })
+      .create(
+        {
+          name,
+          email: email || null,
+          vatNumber: vatNumber || null,
+          address: address || null,
+        },
+        this.idempotencyKey.value,
+      )
       .subscribe({
         next: () => this.router.navigateByUrl('/customers'),
         error: () => this.submitting.set(false),

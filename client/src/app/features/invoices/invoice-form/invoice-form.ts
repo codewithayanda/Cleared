@@ -6,6 +6,7 @@ import { CustomerService } from '@core/services/customer.service';
 import { InvoiceService } from '@core/services/invoice.service';
 import { Customer } from '@core/models/customer.model';
 import { VatTreatment } from '@core/models/invoice.model';
+import { IdempotencyKey } from '@core/utils/idempotency-key';
 
 @Component({
   selector: 'app-invoice-form',
@@ -18,6 +19,9 @@ export class InvoiceForm {
   private readonly customerService = inject(CustomerService);
   private readonly invoiceService = inject(InvoiceService);
   private readonly router = inject(Router);
+
+  // Reused by every retry of this form. The page is left on success, so it is never renewed.
+  private readonly idempotencyKey = new IdempotencyKey();
 
   protected readonly customers = signal<Customer[]>([]);
   protected readonly submitting = signal(false);
@@ -83,15 +87,18 @@ export class InvoiceForm {
     this.submitting.set(true);
 
     this.invoiceService
-      .create({
-        customerId,
-        lines: lines.map((line) => ({
-          description: line.description,
-          quantity: line.quantity,
-          unitPrice: line.unitPrice.toFixed(2),
-          vatTreatment: line.vatTreatment,
-        })),
-      })
+      .create(
+        {
+          customerId,
+          lines: lines.map((line) => ({
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice.toFixed(2),
+            vatTreatment: line.vatTreatment,
+          })),
+        },
+        this.idempotencyKey.value,
+      )
       .subscribe({
         next: (invoice) => this.router.navigate(['/invoices', invoice.id]),
         error: () => this.submitting.set(false),

@@ -42,7 +42,7 @@ public static class ClearedApiFactoryExtensions
         response.EnsureSuccessStatusCode();
         var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>(ApiJson.Options))!;
 
-        var client = factory.CreateAnonymousClient();
+        var client = factory.CreateDefaultClient(new IdempotencyKeyHandler());
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
         var tenant = (await client.GetFromJsonAsync<TenantResponse>("/api/v1/tenants/me", ApiJson.Options))!;
 

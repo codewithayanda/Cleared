@@ -7,6 +7,7 @@ import { InvoiceService } from '@core/services/invoice.service';
 import { PaymentService } from '@core/services/payment.service';
 import { Invoice, ProblemDetails, VatTreatment } from '@core/models/invoice.model';
 import { Payment } from '@core/models/payment.model';
+import { IdempotencyKey } from '@core/utils/idempotency-key';
 import { StatusBadge } from '@shared/components/status-badge/status-badge';
 
 const VAT_TREATMENT_LABELS: Record<VatTreatment, string> = {
@@ -27,6 +28,10 @@ export class InvoiceDetail {
   private readonly invoiceService = inject(InvoiceService);
   private readonly paymentService = inject(PaymentService);
   private readonly fb = inject(FormBuilder);
+
+  // One key per action. A retry after an error reuses it, and a success renews it.
+  private readonly issueKey = new IdempotencyKey();
+  private readonly paymentKey = new IdempotencyKey();
 
   protected readonly invoice = signal<Invoice | null>(null);
   protected readonly loading = signal(true);
@@ -101,20 +106,24 @@ export class InvoiceDetail {
     this.issueError.set(null);
     this.issueErrorFields.set(null);
 
-    this.invoiceService.issue(current.id, this.issueForm.getRawValue()).subscribe({
-      next: (updated) => {
-        this.invoice.set(updated);
-        this.issuing.set(false);
-        this.showIssueForm.set(false);
-      },
-      error: (error: unknown) => {
-        this.issuing.set(false);
+    this.invoiceService
+      .issue(current.id, this.issueForm.getRawValue(), this.issueKey.value)
+      .subscribe({
+        next: (updated) => {
+          this.issueKey.renew();
+          this.invoice.set(updated);
+          this.issuing.set(false);
+          this.showIssueForm.set(false);
+        },
+        error: (error: unknown) => {
+          this.issuing.set(false);
 
-        const problem = error instanceof HttpErrorResponse ? (error.error as ProblemDetails) : null;
-        this.issueError.set(problem?.detail ?? 'Something went wrong issuing this invoice.');
-        this.issueErrorFields.set(problem?.missingFields ?? null);
-      },
-    });
+          const problem =
+            error instanceof HttpErrorResponse ? (error.error as ProblemDetails) : null;
+          this.issueError.set(problem?.detail ?? 'Something went wrong issuing this invoice.');
+          this.issueErrorFields.set(problem?.missingFields ?? null);
+        },
+      });
   }
 
   protected confirmPayment(): void {
@@ -129,9 +138,14 @@ export class InvoiceDetail {
     const { amount, receivedAt, reference } = this.paymentForm.getRawValue();
 
     this.paymentService
-      .record(current.id, { amount: amount.toFixed(2), receivedAt, reference: reference || null })
+      .record(
+        current.id,
+        { amount: amount.toFixed(2), receivedAt, reference: reference || null },
+        this.paymentKey.value,
+      )
       .subscribe({
         next: () => {
+          this.paymentKey.renew();
           this.recordingPayment.set(false);
           this.showPaymentForm.set(false);
           this.paymentForm.reset({ amount: 0, receivedAt: today(), reference: '' });

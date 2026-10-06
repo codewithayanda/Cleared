@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@env';
 import { CreateCustomerRequest, Customer } from '@core/models/customer.model';
+import { IDEMPOTENCY_HEADER } from '@core/utils/idempotency-key';
 
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
@@ -13,7 +14,9 @@ export class CustomerService {
     return this.http.get<Customer[]>(this.baseUrl);
   }
 
-  create(request: CreateCustomerRequest): Observable<Customer> {
-    return this.http.post<Customer>(this.baseUrl, request);
+  create(request: CreateCustomerRequest, idempotencyKey: string): Observable<Customer> {
+    return this.http.post<Customer>(this.baseUrl, request, {
+      headers: { [IDEMPOTENCY_HEADER]: idempotencyKey },
+    });
   }
 }
