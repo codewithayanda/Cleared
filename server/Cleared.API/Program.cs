@@ -32,9 +32,11 @@ builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<ClearedDbContext>(options =>
+builder.Services.AddScoped<TenantWriteInterceptor>();
+builder.Services.AddDbContext<ClearedDbContext>((serviceProvider, options) =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Cleared"))
-        .UseSnakeCaseNamingConvention());
+        .UseSnakeCaseNamingConvention()
+        .AddInterceptors(serviceProvider.GetRequiredService<TenantWriteInterceptor>()));
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
