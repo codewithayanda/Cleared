@@ -1,75 +1,58 @@
-# Cleared
+<p align="center">
+  <img src="client/public/favicon.svg" alt="Cleared" width="72" height="72">
+</p>
 
-Multi-tenant invoicing and VAT platform for South African SMEs.
+<h1 align="center">Cleared</h1>
 
-## Layout
+<p align="center">
+  <strong>Invoicing and VAT for South African small businesses, done right the first time.</strong>
+</p>
 
-```
-server/          ASP.NET Core 10 backend (Clean Architecture)
-  Cleared.Domain/          entities, value objects, business rules. Zero package references
-  Cleared.Application/     use-case services and the ports they depend on
-  Cleared.Infrastructure/  adapters implementing those ports (EF Core, Identity, PDF)
-  Cleared.API/             controllers, auth, middleware. The composition root
-  Cleared.*.Tests/         see "Testing" below
-client/          Angular 22 SPA
-```
+Cleared helps small businesses in South Africa invoice correctly, keep track of what their customers owe and stay on the right side of VAT, without having to be tax experts. It is in active development and not yet open to the public.
 
-Dependencies point inward only. `Cleared.Domain` references nothing; `Cleared.Application`
-declares the interfaces that `Cleared.Infrastructure` implements. `Cleared.Architecture.Tests`
-checks the declared project references, so a dependency added in the wrong direction fails
-the build.
+## Why Cleared
 
-## Prerequisites
+Most small businesses still invoice from a spreadsheet or a word processor. That works until it does not: a document that says "Tax Invoice" when the business is not VAT registered, a required detail left off, a number that was skipped, a payment nobody can find. Each one is a small slip with a real cost at VAT time.
 
-- .NET SDK 10 (pinned in `global.json`)
-- PostgreSQL 17
-- Node 24 + npm (for the client)
+Cleared knows the rules and applies them as the invoice is written. It keeps an honest record of what was billed, what was paid and what is still owed, and it is built around how South African customers really pay: mostly by bank transfer.
 
-## Running
+## What you can do today
 
-```bash
-cd server
-dotnet run --project Cleared.API
-```
+- **Invoice with confidence.** Add your customers, build an invoice line by line and issue it when it is ready. Invoice numbers run in sequence with no gaps.
+- **Get VAT right.** Standard, zero-rated and exempt lines are handled for you. VAT rates carry the dates they apply from, so a rate change never rewrites an old invoice.
+- **Issue the right document.** A business that is not VAT registered never produces a "Tax Invoice". A registered one is checked for the key details the VAT Act asks for before an invoice goes out.
+- **Track payments.** Record bank transfers as they arrive, part-payments included, and always see what is still owed.
+- **Look professional.** Every invoice downloads as a clean PDF you can share with your customer.
+- **Keep a trustworthy record.** Issued invoices are locked, and every key action is written to an audit trail.
+- **Your data stays yours.** Many businesses share one platform, and each one sees only its own records.
 
-Then check `GET /health`. OpenAPI is served at `/openapi/v1.json` in Development only.
+## Where it is heading
 
-## Testing
+- Quotes that turn into invoices
+- A dashboard of what is outstanding, paid and overdue
+- A VAT summary that lines up with the VAT201 return
+- Credit notes for correcting issued invoices
+- Invoices sent by email
+- Online payments through a South African payment gateway
+- Matching bank statements to invoices
+- Team members with their own roles
+- Electronic tax invoicing, once the rules are confirmed
 
-```bash
-cd server
-dotnet test Cleared.slnx
-```
+## Built with
 
-| Project | Scope |
+| Area | Technology |
 |---|---|
-| `Cleared.Domain.Tests` | Pure logic: VAT, money, rounding, state transitions. No I/O. |
-| `Cleared.Application.Tests` | Use-case orchestration against faked ports. |
-| `Cleared.Architecture.Tests` | Dependency direction and layering rules. |
-| `Cleared.Integration.Tests` | Real HTTP requests through the whole API, and concurrency behaviour, against a real database. |
+| Backend | ASP.NET Core 10 and C# |
+| Database | PostgreSQL 17, through Entity Framework Core |
+| Web app | Angular 22, TypeScript and Tailwind CSS |
+| Sign-in | ASP.NET Core Identity with JSON Web Tokens |
+| Invoice PDFs | QuestPDF |
+| Quality | xUnit and Testcontainers on the server, Vitest on the web app, ESLint, and GitHub Actions for continuous integration |
 
-Integration tests run against a real PostgreSQL, never the EF Core in-memory provider,
-which cannot evaluate row-level security, transactions or row locks. That package is
-blocked at build time in `server/Directory.Build.targets`.
+Hosting is planned on AWS, in the Cape Town region.
 
-`Cleared.Integration.Tests` starts its own throwaway PostgreSQL container with Testcontainers,
-applies the migrations to it, and discards it afterwards. It never reads user secrets or
-touches a database you care about. It needs a container runtime: Docker, or Podman with its
-machine running (`podman machine start`).
+## Status
 
-Every endpoint that touches tenant data needs an entry in `IsolationCases.All`, which makes a
-second tenant attack the first one's data. `EndpointGuardTests` reads the routing table and
-fails when an endpoint has neither an entry nor a reason to be exempt, so a new route cannot
-skip the isolation check.
+Cleared is in early development and is not open for sign-ups yet. The core flow already works from start to finish: register a business, add a customer, issue an invoice, record the payment and download the PDF.
 
-## Configuration
-
-No secrets in `appsettings.json`. Local development uses `dotnet user-secrets`;
-deployed environments read from AWS Secrets Manager.
-
-## Conventions
-
-- Package versions are managed centrally in `server/Directory.Packages.props`.
-- Shared build settings live in `server/Directory.Build.props`. Warnings are errors.
-- Money is `decimal` in the domain and a **string** on the wire, never a JSON number.
-- Tax dates are `DateOnly` in SAST. Instants are UTC.
+Working on the code? The build and run notes are in [docs/development.md](docs/development.md).

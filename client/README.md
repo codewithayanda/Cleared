@@ -2,7 +2,7 @@
 
 Angular 22 SPA. Standalone components, **zoneless** change detection, Tailwind 4, Vitest.
 
-See the [root README](../README.md) for the monorepo layout and the backend.
+See the [development notes](../docs/development.md) for the monorepo layout and the backend.
 
 ## Commands
 
