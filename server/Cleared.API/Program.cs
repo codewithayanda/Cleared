@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Cleared.API.Middleware;
+using Cleared.API.Security;
 using Cleared.Application.Abstractions;
 using Cleared.Application.Auditing;
 using Cleared.Application.CreditNotes;
@@ -54,6 +55,15 @@ var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
     ?? throw new InvalidOperationException(
         "Jwt:SigningKey is not configured. Set it via: dotnet user-secrets set \"Jwt:SigningKey\" \"<a long random string>\"");
 
+// HS256 wants a key as long as its own 256-bit hash. A short key can be guessed, and whoever has
+// the key can mint a token for any tenant, so the API refuses to start with one.
+const int MinimumSigningKeyBytes = 32;
+if (Encoding.UTF8.GetByteCount(jwtSigningKey) < MinimumSigningKeyBytes)
+{
+    throw new InvalidOperationException(
+        $"Jwt:SigningKey must be at least {MinimumSigningKeyBytes} bytes. Make one with: openssl rand -base64 48");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -64,6 +74,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidAudience = "Cleared",
             ValidateIssuerSigningKey = true,
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromSeconds(30),
@@ -98,6 +109,15 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
 builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddOptions<SessionLifetimeOptions>()
+    .Bind(builder.Configuration.GetSection(SessionLifetimeOptions.SectionName))
+    .Validate(
+        options => options.IdleLifetime > TimeSpan.Zero && options.AbsoluteLifetime >= options.IdleLifetime,
+        "Session:AbsoluteLifetime must be at least Session:IdleLifetime, and both must be positive.")
+    .ValidateOnStart();
+builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddScoped<RefreshCookie>();
+builder.Services.AddScoped<PasswordTimingEqualizer>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<IInvoicePdfRenderer, QuestPdfInvoiceRenderer>();
 builder.Services.AddScoped<InvoiceService>();

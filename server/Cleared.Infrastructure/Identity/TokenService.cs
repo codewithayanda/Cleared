@@ -1,37 +1,45 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Cleared.Application.Abstractions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Cleared.Infrastructure.Identity;
 
+// Access tokens live 15 minutes and cannot be revoked, so they carry only what a request needs.
+// Sessions that outlive them are SessionService's job.
 public sealed class TokenService(IConfiguration configuration) : ITokenService
 {
+    private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(15);
+
     public string IssueAccessToken(Guid userId, Guid tenantId, string role)
     {
         var signingKey = configuration["Jwt:SigningKey"]
             ?? throw new InvalidOperationException(
                 "Jwt:SigningKey is not configured. Set it via user-secrets before starting the API.");
 
-        var credentials = new SigningCredentials(
-            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
+        // Real time on purpose: the bearer handler checks these claims against the system clock.
+        var now = DateTime.UtcNow;
 
-        var claims = new[]
+        var descriptor = new SecurityTokenDescriptor
         {
-            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new Claim("tenant_id", tenantId.ToString()),
-            new Claim(ClaimTypes.Role, role),
+            Issuer = "Cleared",
+            Audience = "Cleared",
+            Subject = new ClaimsIdentity(
+            [
+                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+                new Claim("tenant_id", tenantId.ToString()),
+                new Claim(ClaimTypes.Role, role),
+            ]),
+            IssuedAt = now,
+            NotBefore = now,
+            Expires = now + Lifetime,
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256),
         };
 
-        var token = new JwtSecurityToken(
-            issuer: "Cleared",
-            audience: "Cleared",
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(15),
-            signingCredentials: credentials);
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return new JsonWebTokenHandler().CreateToken(descriptor);
     }
 }

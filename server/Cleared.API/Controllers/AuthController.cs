@@ -1,3 +1,4 @@
+using Cleared.API.Security;
 using Cleared.Application.Abstractions;
 using Cleared.Application.Auth;
 using Cleared.Application.Tenants;
@@ -13,11 +14,15 @@ namespace Cleared.API.Controllers;
 // Program.cs configures the DbContext directly.
 [ApiController]
 [AllowAnonymous]
+[RejectCrossSite]
+[NoStore]
 [Route("api/v1/auth")]
 public sealed class AuthController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
-    ITokenService tokenService,
+    ISessionService sessionService,
+    RefreshCookie refreshCookie,
+    PasswordTimingEqualizer passwordTiming,
     RegisterTenantService registerTenantService,
     IUnitOfWork unitOfWork) : ControllerBase
 {
@@ -47,28 +52,84 @@ public sealed class AuthController(
 
         await transaction.CommitAsync(cancellationToken);
 
-        var token = tokenService.IssueAccessToken(user.Id, user.TenantId, user.Role);
-
-        return Created(string.Empty, new AuthResponse(token));
+        return Created(string.Empty, await StartSessionAsync(user, cancellationToken));
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
+    public async Task<ActionResult<AuthResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)
         {
-            return Unauthorized(new { title = "Invalid email or password." });
+            passwordTiming.Spend(request.Password);
+
+            return InvalidCredentials();
         }
 
         var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
         if (!result.Succeeded)
         {
-            return Unauthorized(new { title = "Invalid email or password." });
+            return InvalidCredentials();
         }
 
-        var token = tokenService.IssueAccessToken(user.Id, user.TenantId, user.Role);
+        return Ok(await StartSessionAsync(user, cancellationToken));
+    }
 
-        return Ok(new AuthResponse(token));
+    // Trades the refresh cookie for a new access token and a new cookie. Every way of failing
+    // looks the same from outside, and clears the cookie so the browser stops sending a dead one.
+    [HttpPost("refresh")]
+    public async Task<ActionResult<AuthResponse>> Refresh(CancellationToken cancellationToken)
+    {
+        var presented = refreshCookie.Read(Request);
+        if (presented is null)
+        {
+            return SessionEnded();
+        }
+
+        var outcome = await sessionService.RefreshAsync(presented, cancellationToken);
+        if (outcome.Tokens is null)
+        {
+            return SessionEnded();
+        }
+
+        refreshCookie.Write(Response, outcome.Tokens.RefreshToken, outcome.Tokens.RefreshExpiresAt);
+
+        return Ok(new AuthResponse(outcome.Tokens.AccessToken));
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    {
+        if (refreshCookie.Read(Request) is { } presented)
+        {
+            await sessionService.EndAsync(presented, cancellationToken);
+        }
+
+        refreshCookie.Clear(Response);
+
+        return NoContent();
+    }
+
+    // One browser holds one session, so signing in replaces whatever session it still had.
+    private async Task<AuthResponse> StartSessionAsync(ApplicationUser user, CancellationToken cancellationToken)
+    {
+        if (refreshCookie.Read(Request) is { } previous)
+        {
+            await sessionService.EndAsync(previous, cancellationToken);
+        }
+
+        var session = await sessionService.StartAsync(user.Id, cancellationToken);
+        refreshCookie.Write(Response, session.RefreshToken, session.RefreshExpiresAt);
+
+        return new AuthResponse(session.AccessToken);
+    }
+
+    private ActionResult InvalidCredentials() => Unauthorized(new { title = "Invalid email or password." });
+
+    private ActionResult SessionEnded()
+    {
+        refreshCookie.Clear(Response);
+
+        return Unauthorized(new { title = "Your session has ended. Sign in again." });
     }
 }

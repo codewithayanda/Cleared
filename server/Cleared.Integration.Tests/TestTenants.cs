@@ -23,9 +23,10 @@ public static class ClearedApiFactoryExtensions
 {
     private const string Password = "Integration-Tests-1!";
 
-    // Redirects stay off so an unexpected 3xx fails a test instead of being followed.
-    public static HttpClient CreateAnonymousClient(this ClearedApiFactory factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+    // Redirects stay off so an unexpected 3xx fails a test instead of being followed. Cookies stay
+    // off too: a test passes the refresh cookie by hand, so it knows exactly what each request carried.
+    public static HttpClient CreateAnonymousClient(this WebApplicationFactory<Program> factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
 
     // Registers through the real endpoint, so tests take the same path a user does.
     public static async Task<TestTenant> CreateTenantAsync(this ClearedApiFactory factory)

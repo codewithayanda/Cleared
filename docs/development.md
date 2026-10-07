@@ -65,10 +65,21 @@ skip the isolation check.
 Writes are checked as well as reads: `TenantWriteInterceptor` refuses to save a row of a filtered
 entity that does not belong to the caller's tenant, and `TenantWriteInterceptorTests` proves it.
 
+Session behaviour (`RefreshTokenTests`, `SessionEndpointTests`, `SessionHardeningTests`) is tested with a
+clock the test moves by hand. `CreateAnonymousClient` keeps no cookies, so a test passes the refresh
+cookie itself and knows exactly what each request carried.
+
 ## Configuration
 
 No secrets in `appsettings.json`. Local development uses `dotnet user-secrets`;
 deployed environments read from AWS Secrets Manager.
+
+`Jwt:SigningKey` must be at least 32 bytes or the API refuses to start. Make one with
+`openssl rand -base64 48`.
+
+A session ends after 7 days without a refresh, and after 30 days whatever its activity. Override them
+with `Session:IdleLifetime` and `Session:AbsoluteLifetime` (for example `7.00:00:00`). The API refuses
+to start if the absolute limit is shorter than the idle one.
 
 ## Conventions
 
@@ -77,3 +88,4 @@ deployed environments read from AWS Secrets Manager.
 - Money is `decimal` in the domain and a **string** on the wire, never a JSON number.
 - Tax dates are `DateOnly` in SAST. Instants are UTC.
 - Every POST that creates or moves money takes an `Idempotency-Key` header and runs through `IdempotentExecutor`, so a repeated request returns the first answer instead of doing the work twice. `IdempotencyGuardTests` fails a write endpoint that skips it.
+- A session is a 15-minute access token that the client keeps in memory, plus a refresh token in an HttpOnly, `SameSite=Strict` cookie (`cleared_refresh`, path `/api/v1/auth`). Every refresh swaps the cookie for a new one, and presenting an old one ends the whole session, so a client must never send the same cookie from two places at once. The auth endpoints refuse cross-site requests, so the client and the API must be served from the same site. In development the Angular proxy does that.

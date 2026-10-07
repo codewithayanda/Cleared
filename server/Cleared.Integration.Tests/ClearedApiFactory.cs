@@ -12,6 +12,10 @@ namespace Cleared.Integration.Tests;
 // through ApiCollection. Tests isolate themselves by creating their own tenant.
 public sealed class ClearedApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    // The tests mint tokens of their own, so they need to know the key the API runs with. It is
+    // over 64 bytes so a test can also sign with HS512, which refuses shorter keys.
+    public const string SigningKey = "integration-tests-only-signing-key-0123456789-0123456789-0123456789-0123456789";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17").Build();
 
     // "localhost" resolves to IPv6 first and stalls against the container's mapped port here.
@@ -48,6 +52,6 @@ public sealed class ClearedApiFactory : WebApplicationFactory<Program>, IAsyncLi
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Cleared", ConnectionString);
-        builder.UseSetting("Jwt:SigningKey", "integration-tests-only-signing-key-0123456789");
+        builder.UseSetting("Jwt:SigningKey", SigningKey);
     }
 }

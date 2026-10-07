@@ -13,6 +13,8 @@ public class EndpointGuardTests(ClearedApiFactory factory)
     {
         ["POST api/v1/auth/register"] = "anonymous by design, it creates its own tenant (RegistrationTests)",
         ["POST api/v1/auth/login"] = "anonymous by design, it checks credentials and issues the token",
+        ["POST api/v1/auth/refresh"] = "anonymous by design, the refresh cookie is the credential (RefreshTokenTests)",
+        ["POST api/v1/auth/logout"] = "anonymous by design, it ends the session the cookie names (SessionEndpointTests)",
         ["* health"] = "returns no data",
         ["* health/ready"] = "returns no data",
     };
