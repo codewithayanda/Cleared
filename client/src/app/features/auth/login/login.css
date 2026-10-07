@@ -76,6 +76,10 @@
   @apply w-full rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700 disabled:opacity-60;
 }
 
+.login-hint {
+  @apply mt-4 text-center text-xs text-steel-400;
+}
+
 .login-footer {
   @apply mt-6 text-center text-sm text-steel-500;
 }

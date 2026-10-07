@@ -6,6 +6,7 @@ using Cleared.Application.Customers;
 using Cleared.Application.Tenants;
 using Cleared.Domain.Tenancy;
 using Cleared.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -101,9 +102,13 @@ public class RegistrationTests(ClearedApiFactory factory)
 
         var response = await client.PostAsJsonAsync(
             "/api/v1/auth/register", Registration(company, existing.Email, Password), ApiJson.Options);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.False(await CompanyExistsAsync(company));
+        Assert.Equal("An account with this email already exists.", Assert.Single(problem!.Errors["email"]));
+        Assert.False(problem.Errors.ContainsKey("password"));
+        Assert.DoesNotContain(existing.Email, string.Join(' ', problem.Errors.Values.SelectMany(messages => messages)));
     }
 
     [Fact]
@@ -117,6 +122,23 @@ public class RegistrationTests(ClearedApiFactory factory)
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.False(await CompanyExistsAsync(company));
+    }
+
+    [Theory]
+    [InlineData("short1a", "10 characters")]
+    [InlineData("alllowercaseletters", "digit")]
+    [InlineData("ALLUPPERCASE12345", "lowercase")]
+    public async Task A_weak_password_says_which_rule_it_breaks(string password, string rule)
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auth/register", Registration($"Rules Co {Guid.NewGuid():N}", NewEmail(), password), ApiJson.Options);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(problem!.Errors["password"], message => message.Contains(rule, StringComparison.Ordinal));
+        Assert.False(problem.Errors.ContainsKey("email"));
     }
 
     private static string NewEmail() => $"owner-{Guid.NewGuid():N}@example.test";

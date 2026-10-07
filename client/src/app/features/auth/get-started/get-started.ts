@@ -3,7 +3,9 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '@core/services/auth.service';
 import { VatStatus } from '@core/models/auth.model';
+import { passwordRules } from '@core/utils/password-rules';
 import { rateLimitMessage } from '@core/utils/rate-limit-message';
+import { registrationErrors } from '@core/utils/registration-errors';
 
 @Component({
   selector: 'app-get-started',
@@ -18,17 +20,25 @@ export class GetStarted {
 
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly emailError = signal<string | null>(null);
+  protected readonly passwordErrors = signal<string[]>([]);
 
   protected readonly form = this.fb.nonNullable.group({
     companyName: ['', Validators.required],
     vatStatus: ['NotRegistered' as VatStatus, Validators.required],
     vatNumber: [''],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(10)]],
+    password: ['', [Validators.required, Validators.minLength(10), passwordRules]],
   });
 
   protected get isVatRegistered(): boolean {
     return this.form.controls.vatStatus.value === 'Registered';
+  }
+
+  protected get passwordNeedsWork(): boolean {
+    const password = this.form.controls.password;
+
+    return password.invalid && password.touched;
   }
 
   protected submit(): void {
@@ -41,6 +51,8 @@ export class GetStarted {
 
     this.submitting.set(true);
     this.errorMessage.set(null);
+    this.emailError.set(null);
+    this.passwordErrors.set([]);
 
     this.auth
       .register({
@@ -57,9 +69,15 @@ export class GetStarted {
         next: () => this.router.navigateByUrl('/dashboard'),
         error: (error: unknown) => {
           this.submitting.set(false);
+
+          const fields = registrationErrors(error);
+
+          this.emailError.set(fields?.email ?? null);
+          this.passwordErrors.set(fields?.password ?? []);
           this.errorMessage.set(
             rateLimitMessage(error) ??
-              'Could not create your account. Check your details and try again.',
+              fields?.general ??
+              (fields ? null : 'Something went wrong. Please try again.'),
           );
         },
       });

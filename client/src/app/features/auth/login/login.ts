@@ -5,6 +5,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '@core/services/auth.service';
 import { rateLimitMessage } from '@core/utils/rate-limit-message';
 
+// Mirrors the lockout in the API's Program.cs: 5 wrong passwords lock an account for 15 minutes.
+const LOCKOUT_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
 @Component({
   selector: 'app-login',
   imports: [ReactiveFormsModule, RouterLink],
@@ -16,6 +20,13 @@ export class Login {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+
+  // The page counts its own wrong passwords, per email. The server never says an account is locked,
+  // because that would tell anyone which emails have accounts, so this is all the page can know.
+  private readonly wrongPasswords = new Map<string, number>();
+
+  protected readonly lockoutAttempts = LOCKOUT_ATTEMPTS;
+  protected readonly lockoutMinutes = LOCKOUT_MINUTES;
 
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
@@ -39,17 +50,30 @@ export class Login {
     this.submitting.set(true);
     this.errorMessage.set(null);
 
-    this.auth.login(this.form.getRawValue()).subscribe({
+    const credentials = this.form.getRawValue();
+
+    this.auth.login(credentials).subscribe({
       next: () => this.router.navigateByUrl('/dashboard'),
       error: (error: unknown) => {
         this.submitting.set(false);
         this.errorMessage.set(
-          rateLimitMessage(error) ??
-            (error instanceof HttpErrorResponse && error.status === 401
-              ? 'Invalid email or password.'
-              : 'Something went wrong. Please try again.'),
+          rateLimitMessage(error) ?? this.failureMessage(error, credentials.email),
         );
       },
     });
+  }
+
+  private failureMessage(error: unknown, email: string): string {
+    if (!(error instanceof HttpErrorResponse && error.status === 401)) {
+      return 'Something went wrong. Please try again.';
+    }
+
+    const key = email.trim().toLowerCase();
+    const count = (this.wrongPasswords.get(key) ?? 0) + 1;
+    this.wrongPasswords.set(key, count);
+
+    return count >= LOCKOUT_ATTEMPTS
+      ? `Too many wrong passwords. If this account exists, it is locked for ${LOCKOUT_MINUTES} minutes. Wait, then try again.`
+      : 'Invalid email or password.';
   }
 }

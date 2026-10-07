@@ -50,7 +50,10 @@ public sealed class AuthController(
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
-            return BadRequest(new { title = "Registration failed.", errors = result.Errors.Select(e => e.Description) });
+            return ValidationProblem(new ValidationProblemDetails(DescribeFailures(result.Errors))
+            {
+                Title = "Registration failed.",
+            });
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -130,7 +133,24 @@ public sealed class AuthController(
         return new AuthResponse(session.AccessToken);
     }
 
+    // Field names match the form, so the page can put each message next to its box. Identity reports
+    // a taken email twice (the second time as a username), so it gets one sentence of ours instead.
+    private static Dictionary<string, string[]> DescribeFailures(IEnumerable<IdentityError> errors) =>
+        errors
+            .Select(error => error.Code switch
+            {
+                "DuplicateEmail" or "DuplicateUserName" => new Failure("email", "An account with this email already exists."),
+                "InvalidEmail" or "InvalidUserName" => new Failure("email", "Enter a valid email address."),
+                var code when code.StartsWith("Password", StringComparison.Ordinal) => new Failure("password", error.Description),
+                _ => new Failure(string.Empty, error.Description),
+            })
+            .Distinct()
+            .GroupBy(failure => failure.Field, failure => failure.Message)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+
     private ActionResult InvalidCredentials() => Unauthorized(new { title = "Invalid email or password." });
+
+    private sealed record Failure(string Field, string Message);
 
     private ActionResult SessionEnded()
     {

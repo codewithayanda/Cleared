@@ -107,6 +107,11 @@
       </button>
     </form>
 
+    <p class="login-hint">
+      For your security, an account is locked for {{ lockoutMinutes }} minutes after
+      {{ lockoutAttempts }} wrong passwords.
+    </p>
+
     <p class="login-footer">
       New to Cleared?
       <a routerLink="/get-started" class="login-footer-link">Create an account</a>
