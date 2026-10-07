@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '@core/services/auth.service';
+import { rateLimitMessage } from '@core/utils/rate-limit-message';
 
 @Component({
   selector: 'app-login',
@@ -43,9 +44,10 @@ export class Login {
       error: (error: unknown) => {
         this.submitting.set(false);
         this.errorMessage.set(
-          error instanceof HttpErrorResponse && error.status === 401
-            ? 'Invalid email or password.'
-            : 'Something went wrong. Please try again.',
+          rateLimitMessage(error) ??
+            (error instanceof HttpErrorResponse && error.status === 401
+              ? 'Invalid email or password.'
+              : 'Something went wrong. Please try again.'),
         );
       },
     });

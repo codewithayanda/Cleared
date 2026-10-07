@@ -44,6 +44,16 @@ public static class SessionTestSupport
         return new Session(email, StrongPassword, auth.AccessToken, RefreshCookieFrom(response)!);
     }
 
+    // For tests that expect the answer might be a refusal.
+    public static Task<HttpResponseMessage> TryRegisterAsync(HttpClient client) =>
+        client.PostAsJsonAsync(
+            "api/v1/auth/register",
+            new RegisterRequest(
+                new RegisterTenantRequest($"Session Co {Guid.NewGuid():N}", VatStatus.NotRegistered, null, null),
+                $"session-{Guid.NewGuid():N}@example.test",
+                StrongPassword),
+            ApiJson.Options);
+
     // A browser that still holds a cookie sends it with the sign-in too.
     public static async Task<HttpResponseMessage> LoginAsync(
         HttpClient client, Session session, string? presentedCookie = null)

@@ -69,6 +69,10 @@ Session behaviour (`RefreshTokenTests`, `SessionEndpointTests`, `SessionHardenin
 clock the test moves by hand. `CreateAnonymousClient` keeps no cookies, so a test passes the refresh
 cookie itself and knows exactly what each request carried.
 
+`RateLimitTests` start copies of the API with tiny limits and a header that sets the caller's
+address. The shared copy's limits are set so high that the suite can register hundreds of tenants
+from one address.
+
 ## Configuration
 
 No secrets in `appsettings.json`. Local development uses `dotnet user-secrets`;
@@ -80,6 +84,16 @@ deployed environments read from AWS Secrets Manager.
 A session ends after 7 days without a refresh, and after 30 days whatever its activity. Override them
 with `Session:IdleLifetime` and `Session:AbsoluteLifetime` (for example `7.00:00:00`). The API refuses
 to start if the absolute limit is shorter than the idle one.
+
+Callers may make a limited number of requests in a window. Sign-in and registration are limited per
+address (10 a minute and 10 an hour), refreshing and signing out share 30 a minute per address, and
+everything else is 300 a minute per signed-in user, or per address when there is no token. Change any
+of them with `RateLimits:Login`, `Register`, `Session` or `Api`, each with a `PermitLimit` and a
+`Window` (for example `RateLimits:Login:Window` = `00:01:00`). The counters live in memory, so each
+running copy of the API counts on its own. The API sees the address of whatever connects to it, so
+behind a load balancer every caller looks like the balancer until forwarded headers are configured
+with the balancer as the only trusted proxy. Do that before deploying. An account is locked for 15
+minutes after 5 wrong passwords.
 
 ## Conventions
 

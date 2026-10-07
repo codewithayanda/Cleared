@@ -1,3 +1,4 @@
+using Cleared.API.RateLimiting;
 using Cleared.API.Security;
 using Cleared.Application.Abstractions;
 using Cleared.Application.Auth;
@@ -6,6 +7,7 @@ using Cleared.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Cleared.API.Controllers;
 
@@ -27,6 +29,7 @@ public sealed class AuthController(
     IUnitOfWork unitOfWork) : ControllerBase
 {
     [HttpPost("register")]
+    [EnableRateLimiting(RateLimitPolicies.Register)]
     public async Task<ActionResult<AuthResponse>> Register(
         RegisterRequest request, CancellationToken cancellationToken)
     {
@@ -56,6 +59,7 @@ public sealed class AuthController(
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
@@ -78,6 +82,7 @@ public sealed class AuthController(
     // Trades the refresh cookie for a new access token and a new cookie. Every way of failing
     // looks the same from outside, and clears the cookie so the browser stops sending a dead one.
     [HttpPost("refresh")]
+    [EnableRateLimiting(RateLimitPolicies.Session)]
     public async Task<ActionResult<AuthResponse>> Refresh(CancellationToken cancellationToken)
     {
         var presented = refreshCookie.Read(Request);
@@ -98,6 +103,7 @@ public sealed class AuthController(
     }
 
     [HttpPost("logout")]
+    [EnableRateLimiting(RateLimitPolicies.Session)]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
         if (refreshCookie.Read(Request) is { } presented)

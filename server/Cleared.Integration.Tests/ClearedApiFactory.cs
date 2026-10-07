@@ -16,6 +16,8 @@ public sealed class ClearedApiFactory : WebApplicationFactory<Program>, IAsyncLi
     // over 64 bytes so a test can also sign with HS512, which refuses shorter keys.
     public const string SigningKey = "integration-tests-only-signing-key-0123456789-0123456789-0123456789-0123456789";
 
+    private static readonly string[] RateLimitRules = ["Login", "Register", "Session", "Api"];
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17").Build();
 
     // "localhost" resolves to IPv6 first and stalls against the container's mapped port here.
@@ -53,5 +55,12 @@ public sealed class ClearedApiFactory : WebApplicationFactory<Program>, IAsyncLi
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Cleared", ConnectionString);
         builder.UseSetting("Jwt:SigningKey", SigningKey);
+
+        // The suite registers hundreds of tenants from one address, so this copy is all but unlimited.
+        // RateLimitTests starts copies with small limits.
+        foreach (var rule in RateLimitRules)
+        {
+            builder.UseSetting($"RateLimits:{rule}:PermitLimit", "1000000");
+        }
     }
 }

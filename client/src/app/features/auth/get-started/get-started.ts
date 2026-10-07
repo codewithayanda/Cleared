@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '@core/services/auth.service';
 import { VatStatus } from '@core/models/auth.model';
+import { rateLimitMessage } from '@core/utils/rate-limit-message';
 
 @Component({
   selector: 'app-get-started',
@@ -54,9 +55,12 @@ export class GetStarted {
       })
       .subscribe({
         next: () => this.router.navigateByUrl('/dashboard'),
-        error: () => {
+        error: (error: unknown) => {
           this.submitting.set(false);
-          this.errorMessage.set('Could not create your account. Check your details and try again.');
+          this.errorMessage.set(
+            rateLimitMessage(error) ??
+              'Could not create your account. Check your details and try again.',
+          );
         },
       });
   }

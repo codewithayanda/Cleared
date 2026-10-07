@@ -28,7 +28,7 @@ public class SessionHardeningTests(ClearedApiFactory factory)
         var failure = Record.Exception(() => host.CreateClient());
 
         Assert.NotNull(failure);
-        Assert.Contains("at least 32 bytes", Flatten(failure));
+        Assert.Contains("at least 32 bytes", StartupFailure.Messages(failure));
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class SessionHardeningTests(ClearedApiFactory factory)
         var failure = Record.Exception(() => host.CreateClient());
 
         Assert.NotNull(failure);
-        Assert.Contains("Session:AbsoluteLifetime", Flatten(failure));
+        Assert.Contains("Session:AbsoluteLifetime", StartupFailure.Messages(failure));
     }
 
     [Fact]
@@ -162,23 +162,6 @@ public class SessionHardeningTests(ClearedApiFactory factory)
 
         return new JsonWebTokenHandler().CreateToken(
             $"{{\"sub\":\"{Guid.NewGuid()}\",\"tenant_id\":\"{Guid.NewGuid()}\",\"iss\":\"Cleared\",\"aud\":\"Cleared\",\"exp\":{expires}}}");
-    }
-
-    private static string Flatten(Exception? exception)
-    {
-        var messages = new List<string>();
-
-        for (var current = exception; current is not null; current = current.InnerException)
-        {
-            messages.Add(current.Message);
-
-            if (current is AggregateException aggregate)
-            {
-                messages.AddRange(aggregate.InnerExceptions.Select(inner => inner.Message));
-            }
-        }
-
-        return string.Join(" | ", messages);
     }
 
     private sealed class CountingPasswordHasher : IPasswordHasher<ApplicationUser>

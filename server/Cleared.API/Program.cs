@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Cleared.API.Middleware;
+using Cleared.API.RateLimiting;
 using Cleared.API.Security;
 using Cleared.Application.Abstractions;
 using Cleared.Application.Auditing;
@@ -46,6 +47,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
         options.Password.RequireNonAlphanumeric = false;
         options.Password.RequireUppercase = false;
         options.User.RequireUniqueEmail = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<ClearedDbContext>()
@@ -92,6 +95,7 @@ builder.Services.AddHealthChecks()
 
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.AddClearedRateLimiting(builder.Configuration);
 
 builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
@@ -140,6 +144,10 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
+
+// After authentication, so signed-in people are counted one by one. Before authorization, so a
+// flood of calls with no token is throttled and not just turned away.
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
