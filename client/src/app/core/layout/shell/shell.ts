@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '@core/services/auth.service';
 
@@ -11,7 +11,18 @@ import { AuthService } from '@core/services/auth.service';
 export class Shell {
   protected readonly auth = inject(AuthService);
 
+  protected readonly signingOut = signal(false);
+  protected readonly signOutFailed = signal(false);
+
   protected logout(): void {
-    this.auth.logout();
+    this.signingOut.set(true);
+    this.signOutFailed.set(false);
+
+    this.auth.logout().subscribe({
+      error: () => {
+        this.signingOut.set(false);
+        this.signOutFailed.set(true);
+      },
+    });
   }
 }

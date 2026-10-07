@@ -139,7 +139,8 @@
       <button
         type="button"
         (click)="logout()"
-        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-steel-300 transition-colors hover:bg-steel-800 hover:text-white"
+        [disabled]="signingOut()"
+        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-steel-300 transition-colors hover:bg-steel-800 hover:text-white disabled:opacity-60"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -155,8 +156,13 @@
             d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"
           />
         </svg>
-        Sign out
+        {{ signingOut() ? 'Signing out...' : 'Sign out' }}
       </button>
+      @if (signOutFailed()) {
+        <p role="alert" class="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-status-overdue">
+          Could not sign out. Check your connection and try again.
+        </p>
+      }
     </div>
   </aside>
 
