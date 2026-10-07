@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using Cleared.Application.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -57,8 +59,8 @@ public class RateLimitTests(ClearedApiFactory factory)
         var refused = await SignInAsync(client, session.Email, session.Password);
         var failedAttempts = await SessionTestSupport.ScalarAsync(
             factory,
-            "SELECT access_failed_count FROM \"AspNetUsers\" WHERE normalized_email = @email",
-            ("email", session.Email.ToUpperInvariant()));
+            "SELECT attempts FROM sign_in_throttles WHERE email_hash = @hash",
+            ("hash", SHA256.HashData(Encoding.UTF8.GetBytes(session.Email.ToUpperInvariant()))));
 
         await Task.Delay(TimeSpan.FromSeconds(3.5));
         var afterTheWindow = await SignInAsync(client, session.Email, session.Password);

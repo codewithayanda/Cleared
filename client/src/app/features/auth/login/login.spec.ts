@@ -6,6 +6,12 @@ import { AuthResponse } from '@core/models/auth.model';
 import { AuthService } from '@core/services/auth.service';
 import { Login } from './login';
 
+const refused = (retryAfter?: string) =>
+  new HttpErrorResponse({
+    status: 429,
+    headers: retryAfter === undefined ? undefined : new HttpHeaders({ 'Retry-After': retryAfter }),
+  });
+
 describe('Login', () => {
   let signIn: Subject<AuthResponse>;
   let attempts: number;
@@ -51,28 +57,19 @@ describe('Login', () => {
       input.dispatchEvent(new Event('input'));
     };
 
-    const press = () => {
-      element.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
-    };
-
     // Signs in once, and has the server answer with this error.
-    const failWith = (error: HttpErrorResponse, email = 'a@b.co.za') => {
-      type('#email', email);
+    const failWith = (error: HttpErrorResponse) => {
+      type('#email', 'a@b.co.za');
       type('#password', 'secret1234');
-      press();
+      element.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
       signIn.error(error);
       fixture.detectChanges();
     };
 
-    const wrongPassword = (email?: string) =>
-      failWith(new HttpErrorResponse({ status: 401 }), email);
-
     return {
       fixture,
       element,
-      type,
       failWith,
-      wrongPassword,
       alert: () =>
         element.querySelector('.login-alert')?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
       button: () => element.querySelector<HTMLButtonElement>('button[type="submit"]')!,
@@ -85,70 +82,31 @@ describe('Login', () => {
     expect(element.textContent).toContain('locked for 15 minutes after 5 wrong passwords');
   });
 
-  it('tells the person the details were wrong when the server says 401', () => {
-    const { wrongPassword, alert } = open();
+  it('says the details were wrong each time the server says 401, and counts nothing itself', () => {
+    const { failWith, alert, button } = open();
 
-    wrongPassword();
-
-    expect(alert()).toBe('Invalid email or password.');
-  });
-
-  it('shows a countdown and blocks the button once the fifth wrong password has gone in', () => {
-    const { wrongPassword, alert, button } = open();
-
-    for (let attempt = 0; attempt < 4; attempt++) {
-      wrongPassword();
+    for (let attempt = 0; attempt < 6; attempt++) {
+      failWith(new HttpErrorResponse({ status: 401 }));
     }
+
     expect(alert()).toBe('Invalid email or password.');
     expect(button().disabled).toBe(false);
+  });
 
-    wrongPassword();
+  it('counts down whatever the server asks for and blocks the button meanwhile', () => {
+    const { failWith, alert, button } = open();
 
-    expect(alert()).toBe(
-      'Too many wrong passwords. If this account exists, it is locked. You can try again in 15:00.',
-    );
+    failWith(refused('900'));
+
+    expect(alert()).toBe('Too many attempts. You can try again in 15:00.');
     expect(button().disabled).toBe(true);
-  });
-
-  it('counts wrong passwords for each email on its own', () => {
-    const { wrongPassword, alert } = open();
-
-    for (let attempt = 0; attempt < 4; attempt++) {
-      wrongPassword('first@b.co.za');
-    }
-    wrongPassword('second@b.co.za');
-
-    expect(alert()).toBe('Invalid email or password.');
-  });
-
-  it('keeps the lock after a reload, for that email only', () => {
-    const first = open();
-    for (let attempt = 0; attempt < 5; attempt++) {
-      first.wrongPassword();
-    }
-
-    TestBed.resetTestingModule();
-    configure();
-    const afterReload = open();
-
-    afterReload.type('#email', 'a@b.co.za');
-    afterReload.fixture.detectChanges();
-    expect(afterReload.alert()).toContain('locked. You can try again in');
-    expect(afterReload.button().disabled).toBe(true);
-
-    afterReload.type('#email', 'someone.else@b.co.za');
-    afterReload.fixture.detectChanges();
-    expect(afterReload.alert()).toBeNull();
-    expect(afterReload.button().disabled).toBe(false);
   });
 
   it('counts down by the second and lets the person try again when it reaches zero', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T10:00:00Z'));
-    const { fixture, wrongPassword, alert, button } = open();
-    for (let attempt = 0; attempt < 5; attempt++) {
-      wrongPassword();
-    }
+    const { fixture, failWith, alert, button } = open();
+    failWith(refused('900'));
 
     vi.advanceTimersByTime(61_000);
     fixture.detectChanges();
@@ -159,15 +117,13 @@ describe('Login', () => {
     expect(alert()).toBeNull();
     expect(button().disabled).toBe(false);
 
-    wrongPassword();
+    failWith(new HttpErrorResponse({ status: 401 }));
     expect(alert()).toBe('Invalid email or password.');
   });
 
-  it('does not ask the server while the account is locked', () => {
-    const { element, wrongPassword } = open();
-    for (let attempt = 0; attempt < 5; attempt++) {
-      wrongPassword();
-    }
+  it('does not ask the server again while it is counting down', () => {
+    const { element, failWith } = open();
+    failWith(refused('900'));
     const before = attempts;
 
     element.querySelector('form')!.dispatchEvent(new Event('submit'));
@@ -175,14 +131,28 @@ describe('Login', () => {
     expect(attempts).toBe(before);
   });
 
-  it('says how long to wait when the server says too many attempts', () => {
-    const { failWith, alert } = open();
+  it('asks for a moment, with no countdown, when the server gives no time', () => {
+    const { failWith, alert, button } = open();
 
-    failWith(
-      new HttpErrorResponse({ status: 429, headers: new HttpHeaders({ 'Retry-After': '45' }) }),
-    );
+    failWith(refused());
 
-    expect(alert()).toBe('Too many attempts. Try again in less than a minute.');
+    expect(alert()).toBe('Too many attempts. Wait a moment and try again.');
+    expect(button().disabled).toBe(false);
+  });
+
+  it('keeps nothing in the browser, so a reload starts clean and the server decides', () => {
+    const { failWith } = open();
+    failWith(new HttpErrorResponse({ status: 401 }));
+    failWith(refused('900'));
+
+    expect(localStorage.length).toBe(0);
+
+    TestBed.resetTestingModule();
+    configure();
+    const afterReload = open();
+
+    expect(afterReload.alert()).toBeNull();
+    expect(afterReload.button().disabled).toBe(false);
   });
 
   it('stays calm about anything else', () => {

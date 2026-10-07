@@ -164,24 +164,6 @@ public class SessionHardeningTests(ClearedApiFactory factory)
             $"{{\"sub\":\"{Guid.NewGuid()}\",\"tenant_id\":\"{Guid.NewGuid()}\",\"iss\":\"Cleared\",\"aud\":\"Cleared\",\"exp\":{expires}}}");
     }
 
-    private sealed class CountingPasswordHasher : IPasswordHasher<ApplicationUser>
-    {
-        private readonly PasswordHasher<ApplicationUser> _inner = new();
-        private int _verifications;
-
-        public int Verifications => Volatile.Read(ref _verifications);
-
-        public string HashPassword(ApplicationUser user, string password) => _inner.HashPassword(user, password);
-
-        public PasswordVerificationResult VerifyHashedPassword(
-            ApplicationUser user, string hashedPassword, string providedPassword)
-        {
-            Interlocked.Increment(ref _verifications);
-
-            return _inner.VerifyHashedPassword(user, hashedPassword, providedPassword);
-        }
-    }
-
     private sealed record LogEntry(LogLevel Level, string Message);
 
     private sealed class CapturingLoggerProvider : ILoggerProvider

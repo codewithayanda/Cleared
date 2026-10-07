@@ -92,8 +92,13 @@ of them with `RateLimits:Login`, `Register`, `Session` or `Api`, each with a `Pe
 `Window` (for example `RateLimits:Login:Window` = `00:01:00`). The counters live in memory, so each
 running copy of the API counts on its own. The API sees the address of whatever connects to it, so
 behind a load balancer every caller looks like the balancer until forwarded headers are configured
-with the balancer as the only trusted proxy. Do that before deploying. An account is locked for 15
-minutes after 5 wrong passwords.
+with the balancer as the only trusted proxy. Do that before deploying.
+
+Wrong passwords are counted on the server, per email, whether or not the email has an account. The
+fifth wrong one locks sign-in for that email for 15 minutes from every address, and the answer is a
+429 with `Retry-After`. Change it with `SignInThrottle:MaxTries`, `LockDuration` and `ForgetAfter`.
+A try is reserved before the password is checked, so guesses that arrive together cannot all be
+checked.
 
 ## Conventions
 
@@ -104,4 +109,4 @@ minutes after 5 wrong passwords.
 - Every POST that creates or moves money takes an `Idempotency-Key` header and runs through `IdempotentExecutor`, so a repeated request returns the first answer instead of doing the work twice. `IdempotencyGuardTests` fails a write endpoint that skips it.
 - A session is a 15-minute access token that the client keeps in memory, plus a refresh token in an HttpOnly, `SameSite=Strict` cookie (`cleared_refresh`, path `/api/v1/auth`). Every refresh swaps the cookie for a new one, and presenting an old one ends the whole session, so a client must never send the same cookie from two places at once. The auth endpoints refuse cross-site requests, so the client and the API must be served from the same site. In development the Angular proxy does that.
 - The client restores its session before the first route runs, shares one refresh between callers and between tabs (Web Locks), and keeps a flag, never a token, in `localStorage` so first-time visitors skip the startup call. `session-flow.spec.ts` proves the pieces work together.
-- The API never says an account is locked, because that would show anyone which emails have accounts. The sign-in page counts wrong passwords per email in `localStorage` (`LockoutTracker`) so it can show a countdown that survives a reload. It is only a courtesy to the person, and the server alone enforces the lock.
+- Sign-in is throttled on the server, per email and whether or not the email has an account, so the answer never shows which emails have one (`SignInThrottle`, table `sign_in_throttles`, which stores only a hash of the email). The sign-in page keeps nothing in the browser. It counts down whatever `Retry-After` the server sends.
