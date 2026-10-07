@@ -1,3 +1,4 @@
+using System.Globalization;
 using Cleared.API.RateLimiting;
 using Cleared.API.Security;
 using Cleared.Application.Abstractions;
@@ -25,6 +26,7 @@ public sealed class AuthController(
     ISessionService sessionService,
     RefreshCookie refreshCookie,
     PasswordTimingEqualizer passwordTiming,
+    ISignInThrottle signInThrottle,
     RegisterTenantService registerTenantService,
     IUnitOfWork unitOfWork) : ControllerBase
 {
@@ -65,19 +67,29 @@ public sealed class AuthController(
     [EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
+        // The try is reserved before anything else, for an email with no account too, so the answer
+        // is the same for both and guesses that arrive together cannot all be checked.
+        var attempt = await signInThrottle.BeginAsync(request.Email, cancellationToken);
+        if (attempt.Refused is { } wait)
+        {
+            return TooManyAttempts(wait);
+        }
+
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)
         {
             passwordTiming.Spend(request.Password);
 
-            return InvalidCredentials();
+            return Failed(attempt);
         }
 
-        var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+        var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
         if (!result.Succeeded)
         {
-            return InvalidCredentials();
+            return Failed(attempt);
         }
+
+        await signInThrottle.ClearAsync(request.Email, cancellationToken);
 
         return Ok(await StartSessionAsync(user, cancellationToken));
     }
@@ -147,6 +159,23 @@ public sealed class AuthController(
             .Distinct()
             .GroupBy(failure => failure.Field, failure => failure.Message)
             .ToDictionary(group => group.Key, group => group.ToArray());
+
+    // The last try allowed has already started the lock, so a wrong answer to it says so.
+    private ActionResult Failed(SignInTry attempt) =>
+        attempt.LockedIfWrong is { } wait ? TooManyAttempts(wait) : InvalidCredentials();
+
+    private ActionResult TooManyAttempts(TimeSpan wait)
+    {
+        Response.Headers.RetryAfter = Math.Ceiling(wait.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+
+        return StatusCode(
+            StatusCodes.Status429TooManyRequests,
+            new ProblemDetails
+            {
+                Status = StatusCodes.Status429TooManyRequests,
+                Title = "Too many wrong passwords. Try again later.",
+            });
+    }
 
     private ActionResult InvalidCredentials() => Unauthorized(new { title = "Invalid email or password." });
 

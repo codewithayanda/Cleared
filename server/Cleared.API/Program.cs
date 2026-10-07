@@ -47,8 +47,6 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
         options.Password.RequireNonAlphanumeric = false;
         options.Password.RequireUppercase = false;
         options.User.RequireUniqueEmail = true;
-        options.Lockout.MaxFailedAccessAttempts = 5;
-        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<ClearedDbContext>()
@@ -120,6 +118,13 @@ builder.Services.AddOptions<SessionLifetimeOptions>()
         "Session:AbsoluteLifetime must be at least Session:IdleLifetime, and both must be positive.")
     .ValidateOnStart();
 builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddOptions<SignInThrottleOptions>()
+    .Bind(builder.Configuration.GetSection(SignInThrottleOptions.SectionName))
+    .Validate(
+        options => options.MaxTries > 0 && options.LockDuration > TimeSpan.Zero && options.ForgetAfter > options.LockDuration,
+        "SignInThrottle needs MaxTries above zero, and a ForgetAfter longer than LockDuration.")
+    .ValidateOnStart();
+builder.Services.AddScoped<ISignInThrottle, SignInThrottle>();
 builder.Services.AddScoped<RefreshCookie>();
 builder.Services.AddScoped<PasswordTimingEqualizer>();
 builder.Services.AddSingleton<IClock, SystemClock>();

@@ -98,7 +98,7 @@
 
       @if (locked()) {
         <p class="login-alert" role="alert">
-          Too many wrong passwords. If this account exists, it is locked. You can try again in
+          Too many attempts. You can try again in
           {{ countdown() }}.
         </p>
       }
@@ -116,7 +116,7 @@
 
     <p class="login-hint">
       For your security, an account is locked for {{ lockoutMinutes }} minutes after
-      {{ lockoutAttempts }} wrong passwords.
+      {{ lockoutTries }} wrong passwords.
     </p>
 
     <p class="login-footer">
