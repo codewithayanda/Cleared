@@ -8,15 +8,36 @@ import { Login } from './login';
 
 describe('Login', () => {
   let signIn: Subject<AuthResponse>;
+  let attempts: number;
 
-  beforeEach(() => {
+  function configure(): void {
     TestBed.configureTestingModule({
       imports: [Login],
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: { login: () => (signIn = new Subject<AuthResponse>()) } },
+        {
+          provide: AuthService,
+          useValue: {
+            login: () => {
+              attempts++;
+
+              return (signIn = new Subject<AuthResponse>());
+            },
+          },
+        },
       ],
     });
+  }
+
+  beforeEach(() => {
+    attempts = 0;
+    localStorage.clear();
+    configure();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
   });
 
   function open() {
@@ -30,11 +51,15 @@ describe('Login', () => {
       input.dispatchEvent(new Event('input'));
     };
 
+    const press = () => {
+      element.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+    };
+
     // Signs in once, and has the server answer with this error.
     const failWith = (error: HttpErrorResponse, email = 'a@b.co.za') => {
       type('#email', email);
       type('#password', 'secret1234');
-      element.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      press();
       signIn.error(error);
       fixture.detectChanges();
     };
@@ -43,10 +68,14 @@ describe('Login', () => {
       failWith(new HttpErrorResponse({ status: 401 }), email);
 
     return {
+      fixture,
       element,
+      type,
       failWith,
       wrongPassword,
-      alert: () => element.querySelector('.login-alert')?.textContent?.trim() ?? null,
+      alert: () =>
+        element.querySelector('.login-alert')?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
+      button: () => element.querySelector<HTMLButtonElement>('button[type="submit"]')!,
     };
   }
 
@@ -64,19 +93,21 @@ describe('Login', () => {
     expect(alert()).toBe('Invalid email or password.');
   });
 
-  it('says the account may be locked once the fifth wrong password has gone in', () => {
-    const { wrongPassword, alert } = open();
+  it('shows a countdown and blocks the button once the fifth wrong password has gone in', () => {
+    const { wrongPassword, alert, button } = open();
 
     for (let attempt = 0; attempt < 4; attempt++) {
       wrongPassword();
     }
     expect(alert()).toBe('Invalid email or password.');
+    expect(button().disabled).toBe(false);
 
     wrongPassword();
 
     expect(alert()).toBe(
-      'Too many wrong passwords. If this account exists, it is locked for 15 minutes. Wait, then try again.',
+      'Too many wrong passwords. If this account exists, it is locked. You can try again in 15:00.',
     );
+    expect(button().disabled).toBe(true);
   });
 
   it('counts wrong passwords for each email on its own', () => {
@@ -88,6 +119,60 @@ describe('Login', () => {
     wrongPassword('second@b.co.za');
 
     expect(alert()).toBe('Invalid email or password.');
+  });
+
+  it('keeps the lock after a reload, for that email only', () => {
+    const first = open();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      first.wrongPassword();
+    }
+
+    TestBed.resetTestingModule();
+    configure();
+    const afterReload = open();
+
+    afterReload.type('#email', 'a@b.co.za');
+    afterReload.fixture.detectChanges();
+    expect(afterReload.alert()).toContain('locked. You can try again in');
+    expect(afterReload.button().disabled).toBe(true);
+
+    afterReload.type('#email', 'someone.else@b.co.za');
+    afterReload.fixture.detectChanges();
+    expect(afterReload.alert()).toBeNull();
+    expect(afterReload.button().disabled).toBe(false);
+  });
+
+  it('counts down by the second and lets the person try again when it reaches zero', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T10:00:00Z'));
+    const { fixture, wrongPassword, alert, button } = open();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      wrongPassword();
+    }
+
+    vi.advanceTimersByTime(61_000);
+    fixture.detectChanges();
+    expect(alert()).toContain('try again in 13:59');
+
+    vi.advanceTimersByTime(14 * 60_000);
+    fixture.detectChanges();
+    expect(alert()).toBeNull();
+    expect(button().disabled).toBe(false);
+
+    wrongPassword();
+    expect(alert()).toBe('Invalid email or password.');
+  });
+
+  it('does not ask the server while the account is locked', () => {
+    const { element, wrongPassword } = open();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      wrongPassword();
+    }
+    const before = attempts;
+
+    element.querySelector('form')!.dispatchEvent(new Event('submit'));
+
+    expect(attempts).toBe(before);
   });
 
   it('says how long to wait when the server says too many attempts', () => {

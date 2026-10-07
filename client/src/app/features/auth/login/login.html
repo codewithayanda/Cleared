@@ -96,13 +96,20 @@
         }
       </div>
 
+      @if (locked()) {
+        <p class="login-alert" role="alert">
+          Too many wrong passwords. If this account exists, it is locked. You can try again in
+          {{ countdown() }}.
+        </p>
+      }
+
       @if (errorMessage()) {
         <p class="login-alert">
           {{ errorMessage() }}
         </p>
       }
 
-      <button type="submit" [disabled]="submitting()" class="login-submit">
+      <button type="submit" [disabled]="submitting() || locked()" class="login-submit">
         {{ submitting() ? 'Signing in…' : 'Sign in' }}
       </button>
     </form>
