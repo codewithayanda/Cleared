@@ -43,6 +43,47 @@ public class CustomerTests
     }
 
     [Fact]
+    public void Create_NoEmail_LeavesEmailNull()
+    {
+        var customer = Customer.Create(Guid.NewGuid(), TenantId, "Jane Doe", Now);
+
+        Assert.Null(customer.Email);
+    }
+
+    [Theory]
+    [InlineData("not-an-email")]
+    [InlineData("jane@example")]
+    [InlineData("")]
+    [InlineData(" jane@example.co.za")]
+    public void Create_InvalidEmail_Throws(string email)
+    {
+        Assert.Throws<ArgumentException>(() => Customer.Create(Guid.NewGuid(), TenantId, "Jane Doe", Now, email: email));
+    }
+
+    [Fact]
+    public void UpdateDetails_InvalidEmail_ThrowsAndChangesNothing()
+    {
+        var customer = Customer.Create(
+            Guid.NewGuid(), TenantId, "Jane Doe", Now, email: "jane@example.co.za", address: "1 Main Road");
+
+        Assert.Throws<ArgumentException>(() => customer.UpdateDetails("Jane Smith", email: "not-an-email"));
+
+        Assert.Equal("Jane Doe", customer.Name);
+        Assert.Equal("jane@example.co.za", customer.Email);
+        Assert.Equal("1 Main Road", customer.Address);
+    }
+
+    [Fact]
+    public void UpdateDetails_NoEmail_ClearsTheEmail()
+    {
+        var customer = Customer.Create(Guid.NewGuid(), TenantId, "Jane Doe", Now, email: "jane@example.co.za");
+
+        customer.UpdateDetails("Jane Doe");
+
+        Assert.Null(customer.Email);
+    }
+
+    [Fact]
     public void UpdateDetails_BlankName_Throws()
     {
         var customer = Customer.Create(Guid.NewGuid(), TenantId, "Jane Doe", Now);

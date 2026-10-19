@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { CustomerService } from '@core/services/customer.service';
+import { validEmail } from '@core/utils/email-rule';
 import { IdempotencyKey } from '@core/utils/idempotency-key';
 
 @Component({
@@ -22,7 +23,7 @@ export class CustomerForm {
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', Validators.required],
-    email: [''],
+    email: ['', validEmail],
     vatNumber: [''],
     address: [''],
   });

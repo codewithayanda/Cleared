@@ -141,6 +141,53 @@ public class RegistrationTests(ClearedApiFactory factory)
         Assert.False(problem.Errors.ContainsKey("email"));
     }
 
+    [Theory]
+    [InlineData("not-an-email")]
+    [InlineData("owner@localhost")]
+    [InlineData("owner @example.test")]
+    public async Task A_malformed_email_is_refused_next_to_the_email_box_and_leaves_no_company_behind(string email)
+    {
+        using var client = factory.CreateAnonymousClient();
+        var company = $"Orphan Co {Guid.NewGuid():N}";
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auth/register", Registration(company, email, Password), ApiJson.Options);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("Enter a valid email address.", Assert.Single(problem!.Errors["email"]));
+        Assert.False(await CompanyExistsAsync(company));
+    }
+
+    [Fact]
+    public async Task An_email_too_long_to_be_real_is_a_400_not_a_500()
+    {
+        using var client = factory.CreateAnonymousClient();
+        var email = new string('a', 300) + "@example.test";
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auth/register", Registration($"Long Co {Guid.NewGuid():N}", email, Password), ApiJson.Options);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("o'brien")]
+    [InlineData("owner+invoices")]
+    public async Task A_real_address_with_unusual_characters_can_register_and_sign_in(string name)
+    {
+        using var client = factory.CreateAnonymousClient();
+        var email = $"{name}-{Guid.NewGuid():N}@example.test";
+
+        var registered = await client.PostAsJsonAsync(
+            "/api/v1/auth/register", Registration($"Unusual Co {Guid.NewGuid():N}", email, Password), ApiJson.Options);
+        var signedIn = await client.PostAsJsonAsync(
+            "/api/v1/auth/login", new LoginRequest(email, Password), ApiJson.Options);
+
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, signedIn.StatusCode);
+    }
+
     private static string NewEmail() => $"owner-{Guid.NewGuid():N}@example.test";
 
     private static RegisterRequest Registration(string company, string email, string password) =>

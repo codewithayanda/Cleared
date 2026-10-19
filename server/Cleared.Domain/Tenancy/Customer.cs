@@ -47,6 +47,8 @@ public sealed class Customer : Entity
             throw new ArgumentException("A customer must have a name.", nameof(name));
         }
 
+        RequireValidEmail(email);
+
         return new Customer(id, tenantId, name, vatNumber, email, address)
         {
             CreatedAt = createdAt,
@@ -60,9 +62,20 @@ public sealed class Customer : Entity
             throw new ArgumentException("A customer must have a name.", nameof(name));
         }
 
+        RequireValidEmail(email);
+
         Name = name;
         VatNumber = vatNumber;
         Email = email;
         Address = address;
+    }
+
+    // No email is fine. A blank one is not: absent means null.
+    private static void RequireValidEmail(string? email)
+    {
+        if (email is not null && !EmailAddressRule.IsValid(email))
+        {
+            throw new ArgumentException("A customer's email must be a valid email address.", nameof(email));
+        }
     }
 }

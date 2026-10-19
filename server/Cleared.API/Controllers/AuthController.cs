@@ -4,6 +4,7 @@ using Cleared.API.Security;
 using Cleared.Application.Abstractions;
 using Cleared.Application.Auth;
 using Cleared.Application.Tenants;
+using Cleared.Domain.Common;
 using Cleared.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -12,9 +13,7 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace Cleared.API.Controllers;
 
-// UserManager and SignInManager are used directly rather than behind an Application-layer
-// port: the API project is already the composition root for Identity concerns, the same way
-// Program.cs configures the DbContext directly.
+
 [ApiController]
 [AllowAnonymous]
 [RejectCrossSite]
@@ -30,11 +29,18 @@ public sealed class AuthController(
     RegisterTenantService registerTenantService,
     IUnitOfWork unitOfWork) : ControllerBase
 {
+    private const string InvalidEmailMessage = "Enter a valid email address.";
+
     [HttpPost("register")]
     [EnableRateLimiting(RateLimitPolicies.Register)]
     public async Task<ActionResult<AuthResponse>> Register(
         RegisterRequest request, CancellationToken cancellationToken)
     {
+        if (!EmailAddressRule.IsValid(request.Email))
+        {
+            return RegistrationFailed(new Dictionary<string, string[]> { ["email"] = [InvalidEmailMessage] });
+        }
+
         // The company and its Owner are created together or not at all. A duplicate email or a
         // weak password must not leave an empty company behind.
         await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
@@ -52,10 +58,7 @@ public sealed class AuthController(
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
-            return ValidationProblem(new ValidationProblemDetails(DescribeFailures(result.Errors))
-            {
-                Title = "Registration failed.",
-            });
+            return RegistrationFailed(DescribeFailures(result.Errors));
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -145,6 +148,9 @@ public sealed class AuthController(
         return new AuthResponse(session.AccessToken);
     }
 
+    private ActionResult RegistrationFailed(Dictionary<string, string[]> errors) =>
+        ValidationProblem(new ValidationProblemDetails(errors) { Title = "Registration failed." });
+
     // Field names match the form, so the page can put each message next to its box. Identity reports
     // a taken email twice (the second time as a username), so it gets one sentence of ours instead.
     private static Dictionary<string, string[]> DescribeFailures(IEnumerable<IdentityError> errors) =>
@@ -152,7 +158,7 @@ public sealed class AuthController(
             .Select(error => error.Code switch
             {
                 "DuplicateEmail" or "DuplicateUserName" => new Failure("email", "An account with this email already exists."),
-                "InvalidEmail" or "InvalidUserName" => new Failure("email", "Enter a valid email address."),
+                "InvalidEmail" or "InvalidUserName" => new Failure("email", InvalidEmailMessage),
                 var code when code.StartsWith("Password", StringComparison.Ordinal) => new Failure("password", error.Description),
                 _ => new Failure(string.Empty, error.Description),
             })
