@@ -11,6 +11,7 @@ using Cleared.Application.Idempotency;
 using Cleared.Application.Invoices;
 using Cleared.Application.Payments;
 using Cleared.Application.Tenants;
+using Cleared.Domain.Common;
 using Cleared.Infrastructure;
 using Cleared.Infrastructure.Documents;
 using Cleared.Infrastructure.Identity;
@@ -25,8 +26,6 @@ using Microsoft.IdentityModel.Tokens;
 using QuestPDF.Infrastructure;
 using Scalar.AspNetCore;
 
-// Community license: free under $1M USD annual revenue. See the package comment in
-// Directory.Packages.props.
 QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,6 +46,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
         options.Password.RequireNonAlphanumeric = false;
         options.Password.RequireUppercase = false;
         options.User.RequireUniqueEmail = true;
+        options.User.AllowedUserNameCharacters = EmailAddressRule.AllowedCharacters;
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<ClearedDbContext>()

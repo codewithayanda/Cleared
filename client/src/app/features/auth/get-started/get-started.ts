@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '@core/services/auth.service';
 import { VatStatus } from '@core/models/auth.model';
+import { validEmail } from '@core/utils/email-rule';
 import { passwordRules } from '@core/utils/password-rules';
 import { rateLimitMessage } from '@core/utils/rate-limit-message';
 import { registrationErrors } from '@core/utils/registration-errors';
@@ -27,7 +28,7 @@ export class GetStarted {
     companyName: ['', Validators.required],
     vatStatus: ['NotRegistered' as VatStatus, Validators.required],
     vatNumber: [''],
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [Validators.required, validEmail]],
     password: ['', [Validators.required, Validators.minLength(10), passwordRules]],
   });
 

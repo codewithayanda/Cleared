@@ -44,9 +44,9 @@ describe('GetStarted', () => {
       input.dispatchEvent(new Event('input'));
     };
 
-    const submit = (password: string) => {
+    const submit = (password: string, email = 'a@b.co.za') => {
       fill('#companyName', 'Acme');
-      fill('#email', 'a@b.co.za');
+      fill('#email', email);
       fill('#password', password);
       element.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
       fixture.detectChanges();
@@ -97,6 +97,16 @@ describe('GetStarted', () => {
     fixture.detectChanges();
 
     expect(text()).toContain('Something went wrong. Please try again.');
+  });
+
+  it('does not send an email address the server would refuse, and says why', () => {
+    const { fixture, element, submit } = open();
+
+    submit('Abcdefghij1', 'a@b');
+    fixture.detectChanges();
+
+    expect(attempts).toBe(0);
+    expect(element.textContent).toContain('Enter a valid email address.');
   });
 
   it('does not send a password that breaks the rules the server will check', () => {
