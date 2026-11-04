@@ -45,6 +45,7 @@ public static partial class RateLimitingExtensions
         limiter.AddPolicy(RateLimitPolicies.Session, context => ByAddress(context, rules.Session));
         limiter.AddPolicy(RateLimitPolicies.ForgotPassword, context => ByAddress(context, rules.ForgotPassword));
         limiter.AddPolicy(RateLimitPolicies.ResetPassword, context => ByAddress(context, rules.ResetPassword));
+        limiter.AddPolicy(RateLimitPolicies.VerifyEmail, context => ByAddress(context, rules.VerifyEmail));
     }
 
     private static string CallerKey(HttpContext context)

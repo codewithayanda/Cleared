@@ -10,6 +10,7 @@ import {
   LoginRequest,
   RegisterRequest,
   ResetPasswordRequest,
+  VerifyEmailRequest,
 } from '@core/models/auth.model';
 import { signedInHint } from '@core/utils/signed-in-hint';
 import { withTabLock } from '@core/utils/tab-lock';
@@ -92,6 +93,13 @@ export class AuthService implements OnDestroy {
   // Never signs anyone in: the new password is typed again at the sign-in page.
   resetPassword(request: ResetPasswordRequest): Observable<void> {
     return this.http.post<void>(`${environment.apiUrl}/auth/reset-password`, request, {
+      context: authEndpoint(),
+    });
+  }
+
+  // The emailed link is the credential, so this needs no sign-in and signs nobody in.
+  verifyEmail(request: VerifyEmailRequest): Observable<void> {
+    return this.http.post<void>(`${environment.apiUrl}/auth/verify-email`, request, {
       context: authEndpoint(),
     });
   }

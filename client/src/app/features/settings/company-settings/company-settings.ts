@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { AccountService } from '@core/services/account.service';
 import { TenantService } from '@core/services/tenant.service';
 
 @Component({
@@ -12,9 +14,12 @@ export class CompanySettings {
   private readonly fb = inject(FormBuilder);
   private readonly tenantService = inject(TenantService);
 
+  protected readonly accounts = inject(AccountService);
+
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly saved = signal(false);
+  protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly companyName = signal('');
   protected readonly vatStatus = signal('');
@@ -54,6 +59,7 @@ export class CompanySettings {
 
     this.saving.set(true);
     this.saved.set(false);
+    this.errorMessage.set(null);
 
     this.tenantService
       .updateProfile({
@@ -67,7 +73,23 @@ export class CompanySettings {
           this.saving.set(false);
           this.saved.set(true);
         },
-        error: () => this.saving.set(false),
+        error: (error: unknown) => {
+          this.saving.set(false);
+          this.errorMessage.set(
+            emailNotConfirmed(error)
+              ? 'Confirm your email address first. Banking details can be changed only after that.'
+              : 'Could not save. Please try again.',
+          );
+        },
       });
   }
+}
+
+// The API refuses a change to banking details with this code until the email has been confirmed.
+function emailNotConfirmed(error: unknown): boolean {
+  return (
+    error instanceof HttpErrorResponse &&
+    error.status === 403 &&
+    (error.error as { code?: string } | null)?.code === 'email_not_verified'
+  );
 }

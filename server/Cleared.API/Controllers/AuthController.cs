@@ -1,4 +1,3 @@
-using System.Globalization;
 using Cleared.API.RateLimiting;
 using Cleared.API.Security;
 using Cleared.Application.Abstractions;
@@ -27,10 +26,13 @@ public sealed class AuthController(
     PasswordTimingEqualizer passwordTiming,
     ISignInThrottle signInThrottle,
     IPasswordResetService passwordResetService,
+    IEmailVerificationService emailVerificationService,
     RegisterTenantService registerTenantService,
-    IUnitOfWork unitOfWork) : ControllerBase
+    IUnitOfWork unitOfWork,
+    ILogger<AuthController> logger) : ControllerBase
 {
     private const string _invalidEmailMessage = "Enter a valid email address.";
+    private const string _invalidLinkMessage = "This link is invalid or has expired. Ask for a new one.";
 
     [HttpPost("register")]
     [EnableRateLimiting(RateLimitPolicies.Register)]
@@ -63,6 +65,7 @@ public sealed class AuthController(
         }
 
         await transaction.CommitAsync(cancellationToken);
+        await SendConfirmationLinkAsync(user.Id, cancellationToken);
 
         return Created(string.Empty, await StartSessionAsync(user, cancellationToken));
     }
@@ -162,11 +165,19 @@ public sealed class AuthController(
         return outcome.Result switch
         {
             ResetResult.Succeeded => NoContent(),
-            ResetResult.InvalidLink => FieldProblem(
-                "Password reset failed.", "token", "This link is invalid or has expired. Ask for a new one."),
+            ResetResult.InvalidLink => FieldProblem("Password reset failed.", "token", _invalidLinkMessage),
             _ => FieldProblem("Password reset failed.", "password", [.. outcome.PasswordProblems]),
         };
     }
+
+    // The emailed link is the credential, so no sign-in is needed. Opening the link only shows a page. This
+    // call, which the person makes with a button, is what confirms, so a mail scanner cannot use the link up.
+    [HttpPost("verify-email")]
+    [EnableRateLimiting(RateLimitPolicies.VerifyEmail)]
+    public async Task<IActionResult> VerifyEmail(VerifyEmailRequest request, CancellationToken cancellationToken) =>
+        await emailVerificationService.ConfirmAsync(request.Token, cancellationToken)
+            ? NoContent()
+            : FieldProblem("Email confirmation failed.", "token", _invalidLinkMessage);
 
     // One browser holds one session, so signing in replaces whatever session it still had.
     private async Task<AuthResponse> StartSessionAsync(ApplicationUser user, CancellationToken cancellationToken)
@@ -180,6 +191,20 @@ public sealed class AuthController(
         refreshCookie.Write(Response, session.RefreshToken, session.RefreshExpiresAt);
 
         return new AuthResponse(session.AccessToken);
+    }
+
+    // The account exists by now, so trouble sending this must not fail the sign-up. The page can resend.
+    private async Task SendConfirmationLinkAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await emailVerificationService.RequestAsync(userId, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                "The confirmation link for user {UserId} could not be sent ({Reason}).", userId, exception.GetType().Name);
+        }
     }
 
     private ActionResult RegistrationFailed(Dictionary<string, string[]> errors) =>
@@ -210,18 +235,8 @@ public sealed class AuthController(
     private ActionResult Failed(SignInTry attempt) =>
         attempt.LockedIfWrong is { } wait ? TooManyAttempts(wait) : InvalidCredentials();
 
-    private ActionResult TooManyAttempts(TimeSpan wait, string title = "Too many wrong passwords. Try again later.")
-    {
-        Response.Headers.RetryAfter = Math.Ceiling(wait.TotalSeconds).ToString(CultureInfo.InvariantCulture);
-
-        return StatusCode(
-            StatusCodes.Status429TooManyRequests,
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status429TooManyRequests,
-                Title = title,
-            });
-    }
+    private ActionResult TooManyAttempts(TimeSpan wait, string title = "Too many wrong passwords. Try again later.") =>
+        TooManyRequestsResult.Create(this, wait, title);
 
     private ActionResult InvalidCredentials() => Unauthorized(new { title = "Invalid email or password." });
 

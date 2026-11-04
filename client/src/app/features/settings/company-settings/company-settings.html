@@ -55,6 +55,12 @@
         <p class="mt-1 text-xs text-steel-500">
           Shown on invoices so customers know where to send an EFT payment.
         </p>
+        @if (accounts.account()?.emailVerified === false) {
+          <p class="mt-2 rounded-md bg-gold-100 px-3 py-2 text-xs text-steel-800" role="note">
+            Confirm your email address to change banking details. We sent a link when you signed up,
+            and the notice at the top of the page can send another.
+          </p>
+        }
 
         <div class="mt-3 grid grid-cols-2 gap-4">
           <div class="col-span-2">
@@ -101,6 +107,9 @@
         </button>
         @if (saved()) {
           <span class="text-sm font-medium text-status-paid">Saved.</span>
+        }
+        @if (errorMessage()) {
+          <span class="text-sm text-status-overdue" role="alert">{{ errorMessage() }}</span>
         }
       </div>
     </form>

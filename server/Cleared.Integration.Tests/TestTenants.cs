@@ -28,8 +28,10 @@ public static class ClearedApiFactoryExtensions
     public static HttpClient CreateAnonymousClient(this WebApplicationFactory<Program> factory) =>
         factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
 
-    // Registers through the real endpoint, so tests take the same path a user does.
-    public static async Task<TestTenant> CreateTenantAsync(this ClearedApiFactory factory)
+    // Registers through the real endpoint, so tests take the same path a user does. The email starts
+    // confirmed so the rest of the suite is not held back by it. A test about confirming asks for an
+    // account that has not been.
+    public static async Task<TestTenant> CreateTenantAsync(this ClearedApiFactory factory, bool confirmEmail = true)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var email = $"owner-{suffix}@example.test";
@@ -42,6 +44,14 @@ public static class ClearedApiFactoryExtensions
             ApiJson.Options);
         response.EnsureSuccessStatusCode();
         var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>(ApiJson.Options))!;
+
+        if (confirmEmail)
+        {
+            await SessionTestSupport.ExecuteAsync(
+                factory,
+                "UPDATE \"AspNetUsers\" SET email_confirmed = true WHERE normalized_email = @email",
+                ("email", email.ToUpperInvariant()));
+        }
 
         var client = factory.CreateDefaultClient(new IdempotencyKeyHandler());
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);

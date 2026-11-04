@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '@core/services/auth.service';
+import { VerifyEmailBanner } from '../verify-email-banner/verify-email-banner';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, VerifyEmailBanner],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shell.html',
 })

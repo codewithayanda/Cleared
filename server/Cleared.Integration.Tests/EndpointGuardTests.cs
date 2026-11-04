@@ -17,6 +17,9 @@ public class EndpointGuardTests(ClearedApiFactory factory)
         ["POST api/v1/auth/logout"] = "anonymous by design, it ends the session the cookie names (SessionEndpointTests)",
         ["POST api/v1/auth/forgot-password"] = "anonymous by design, it takes an email and answers the same for every one (PasswordResetTests)",
         ["POST api/v1/auth/reset-password"] = "anonymous by design, the emailed link is the credential (PasswordResetTests)",
+        ["POST api/v1/auth/verify-email"] = "anonymous by design, the emailed link is the credential (EmailVerificationTests)",
+        ["GET api/v1/users/me"] = "authenticated, shows only the signed-in person's own email and whether it is confirmed, no tenant data (EmailVerificationTests)",
+        ["POST api/v1/users/me/email-verification"] = "authenticated, acts only on the signed-in person's own account, no tenant data (EmailVerificationTests)",
         ["* health"] = "returns no data",
         ["* health/ready"] = "returns no data",
     };

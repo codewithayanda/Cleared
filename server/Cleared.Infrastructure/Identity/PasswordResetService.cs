@@ -224,7 +224,7 @@ public sealed partial class PasswordResetService(
 
     private string ResetBody(string link) =>
         $"""
-        Someone asked to reset the password for your Cleared account. If that was you, open this link within {Describe(_options.TokenLifetime)}:
+        Someone asked to reset the password for your Cleared account. If that was you, open this link within {SpanText.Describe(_options.TokenLifetime)}:
 
         {link}
 
@@ -237,13 +237,6 @@ public sealed partial class PasswordResetService(
 
         If that was you, there is nothing more to do. If it was not, reset your password again now: {_publicUrl}/forgot-password
         """;
-
-    private static string Describe(TimeSpan span) =>
-        span.TotalMinutes < 60
-            ? Plural((int)Math.Ceiling(span.TotalMinutes), "minute")
-            : Plural((int)Math.Ceiling(span.TotalHours), "hour");
-
-    private static string Plural(int count, string unit) => $"{count} {unit}{(count == 1 ? string.Empty : "s")}";
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Password reset link issued for user {UserId}.")]
     private static partial void LogIssued(ILogger logger, Guid userId);

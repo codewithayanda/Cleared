@@ -149,6 +149,29 @@ public class RateLimitTests(ClearedApiFactory factory)
     }
 
     [Fact]
+    public async Task Using_a_confirmation_link_has_its_own_limit_apart_from_the_other_calls()
+    {
+        using var host = Limited(("VerifyEmail", 2, HalfAMinute));
+        using var client = host.CreateAnonymousClient();
+
+        var statuses = new List<HttpStatusCode>();
+        for (var call = 0; call < 3; call++)
+        {
+            using var response = await client.PostAsJsonAsync(
+                "api/v1/auth/verify-email", new VerifyEmailRequest(new string('A', 43)), ApiJson.Options);
+            statuses.Add(response.StatusCode);
+        }
+
+        using var asking = await client.PostAsJsonAsync(
+            "api/v1/auth/forgot-password",
+            new ForgotPasswordRequest($"nobody-{Guid.NewGuid():N}@example.test"),
+            ApiJson.Options);
+
+        Assert.Equal([HttpStatusCode.BadRequest, HttpStatusCode.BadRequest, HttpStatusCode.TooManyRequests], statuses);
+        Assert.Equal(HttpStatusCode.Accepted, asking.StatusCode);
+    }
+
+    [Fact]
     public async Task Refreshing_and_signing_out_share_one_allowance()
     {
         using var host = Limited(("Session", 3, HalfAMinute));
@@ -217,6 +240,7 @@ public class RateLimitTests(ClearedApiFactory factory)
     [InlineData("RateLimits:Login:PermitLimit", "0")]
     [InlineData("RateLimits:ForgotPassword:PermitLimit", "0")]
     [InlineData("RateLimits:ResetPassword:Window", "00:00:00")]
+    [InlineData("RateLimits:VerifyEmail:PermitLimit", "0")]
     [InlineData("RateLimits:Api:Window", "00:00:00")]
     public void Impossible_limits_stop_the_API_from_starting(string setting, string value)
     {

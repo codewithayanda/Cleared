@@ -20,7 +20,7 @@ public sealed class ClearedApiFactory : WebApplicationFactory<Program>, IAsyncLi
     public const string SigningKey = "integration-tests-only-signing-key-0123456789-0123456789-0123456789-0123456789";
 
     private static readonly string[] RateLimitRules =
-        ["Login", "Register", "Session", "ForgotPassword", "ResetPassword", "Api"];
+        ["Login", "Register", "Session", "ForgotPassword", "ResetPassword", "VerifyEmail", "Api"];
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17").Build();
 

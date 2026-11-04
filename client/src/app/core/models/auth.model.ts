@@ -28,6 +28,17 @@ export interface ResetPasswordRequest {
   newPassword: string;
 }
 
+// The token is the secret in the emailed link.
+export interface VerifyEmailRequest {
+  token: string;
+}
+
 export interface AuthResponse {
   accessToken: string;
+}
+
+// The signed-in person's own account.
+export interface Account {
+  email: string;
+  emailVerified: boolean;
 }

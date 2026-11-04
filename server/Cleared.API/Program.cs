@@ -140,6 +140,13 @@ builder.Services.AddOptions<PasswordResetOptions>()
         "PasswordReset needs a TokenLifetime and a Window above zero, and a MaxRequestsPerWindow above zero.")
     .ValidateOnStart();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddOptions<EmailVerificationOptions>()
+    .Bind(builder.Configuration.GetSection(EmailVerificationOptions.SectionName))
+    .Validate(
+        options => options.TokenLifetime > TimeSpan.Zero && options.Window > TimeSpan.Zero && options.MaxRequestsPerWindow > 0,
+        "EmailVerification needs a TokenLifetime and a Window above zero, and a MaxRequestsPerWindow above zero.")
+    .ValidateOnStart();
+builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddEmail(builder.Environment, builder.Configuration);
 
 builder.Services.AddScoped<RefreshCookie>();
