@@ -140,7 +140,7 @@ builder.Services.AddOptions<PasswordResetOptions>()
         "PasswordReset needs a TokenLifetime and a Window above zero, and a MaxRequestsPerWindow above zero.")
     .ValidateOnStart();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
-builder.Services.AddEmail(builder.Environment);
+builder.Services.AddEmail(builder.Environment, builder.Configuration);
 
 builder.Services.AddScoped<RefreshCookie>();
 builder.Services.AddScoped<PasswordTimingEqualizer>();

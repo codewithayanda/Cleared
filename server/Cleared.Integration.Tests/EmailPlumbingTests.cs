@@ -1,5 +1,6 @@
 using Cleared.Application.Abstractions;
 using Cleared.Infrastructure.Email;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -76,13 +77,48 @@ public class EmailPlumbingTests
     {
         using var provider = new ServiceCollection()
             .AddLogging()
-            .AddEmail(new FakeEnvironment(environment))
+            .AddEmail(new FakeEnvironment(environment), Settings())
             .BuildServiceProvider();
 
         Assert.IsType(expected, provider.GetRequiredService<IEmailSender>());
         Assert.Same(provider.GetRequiredService<EmailQueue>(), provider.GetRequiredService<IEmailQueue>());
         Assert.Single(provider.GetServices<IHostedService>(), service => service is EmailDispatcher);
     }
+
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Production")]
+    [InlineData("Testing")]
+    public void Smtp_settings_choose_the_smtp_sender_in_every_environment(string environment)
+    {
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddEmail(
+                new FakeEnvironment(environment),
+                Settings(("Host", "smtp.example.test"), ("From", "no-reply@cleared.test")))
+            .BuildServiceProvider();
+
+        Assert.IsType<SmtpEmailSender>(provider.GetRequiredService<IEmailSender>());
+    }
+
+    [Theory]
+    [InlineData("Development", "", typeof(ConsoleEmailSender))]
+    [InlineData("Development", "   ", typeof(ConsoleEmailSender))]
+    [InlineData("Production", "", typeof(UnconfiguredEmailSender))]
+    public void A_blank_host_counts_as_no_settings(string environment, string host, Type expected)
+    {
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddEmail(new FakeEnvironment(environment), Settings(("Host", host)))
+            .BuildServiceProvider();
+
+        Assert.IsType(expected, provider.GetRequiredService<IEmailSender>());
+    }
+
+    private static IConfiguration Settings(params (string Key, string Value)[] values) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(values.ToDictionary(pair => $"Email:Smtp:{pair.Key}", pair => (string?)pair.Value))
+            .Build();
 
     private sealed class FailsOnce : IEmailSender
     {
