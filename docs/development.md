@@ -100,6 +100,18 @@ fifth wrong one locks sign-in for that email for 15 minutes from every address, 
 A try is reserved before the password is checked, so guesses that arrive together cannot all be
 checked.
 
+A forgotten password is reset through an emailed link: `POST /auth/forgot-password`, then `POST /auth/reset-password`.
+The link works once and for 30 minutes, and a person has one live link at a time. An email may ask for 3 links an
+hour, and the API answers the same for an email with an account and one without. Change these with
+`PasswordReset:TokenLifetime`, `MaxRequestsPerWindow` and `Window`, and the per-address limits with
+`RateLimits:ForgotPassword` and `ResetPassword`. `App:PublicUrl` is where people open the web app, which the link
+in the email points at. It is `http://localhost:4200` in `appsettings.Development.json`, and the API refuses to
+start without one.
+
+There is no real email sender yet. In Development the API prints each email to its console, link included, so that
+is where to find a reset link. Everywhere else a message is dropped with a warning that never carries the address
+or the link.
+
 ## Conventions
 
 - Package versions are managed centrally in `server/Directory.Packages.props`.
@@ -110,3 +122,5 @@ checked.
 - A session is a 15-minute access token that the client keeps in memory, plus a refresh token in an HttpOnly, `SameSite=Strict` cookie (`cleared_refresh`, path `/api/v1/auth`). Every refresh swaps the cookie for a new one, and presenting an old one ends the whole session, so a client must never send the same cookie from two places at once. The auth endpoints refuse cross-site requests, so the client and the API must be served from the same site. In development the Angular proxy does that.
 - The client restores its session before the first route runs, shares one refresh between callers and between tabs (Web Locks), and keeps a flag, never a token, in `localStorage` so first-time visitors skip the startup call. `session-flow.spec.ts` proves the pieces work together.
 - Sign-in is throttled on the server, per email and whether or not the email has an account, so the answer never shows which emails have one (`SignInThrottle`, table `sign_in_throttles`, which stores only a hash of the email). The sign-in page keeps nothing in the browser. It counts down whatever `Retry-After` the server sends.
+- Email goes through `IEmailQueue`: a bounded queue that a background dispatcher empties, one message at a time, after the response has gone, into `IEmailSender`. The integration tests replace the sender with `CapturingEmailSender` (`factory.Emails`), so none sends a real email, and they wait for the queue to empty before reading what was sent.
+- A reset link's secret sits after the `#`, so it never reaches a server log or a `Referer` header. The page reads it once and removes it from the address bar. Only a hash of it is stored (`password_reset_tokens`), and the database allows one live link per person.

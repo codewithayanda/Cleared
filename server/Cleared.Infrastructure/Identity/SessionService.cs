@@ -47,7 +47,7 @@ public sealed partial class SessionService(
 
     public async Task<RefreshOutcome> RefreshAsync(string refreshToken, CancellationToken cancellationToken)
     {
-        if (!RefreshTokenSecret.TryHash(refreshToken, out var hash))
+        if (!TokenSecret.TryHash(refreshToken, out var hash))
         {
             return RefreshOutcome.Failed(RefreshFailure.Malformed);
         }
@@ -116,7 +116,7 @@ public sealed partial class SessionService(
 
     public async Task EndAsync(string refreshToken, CancellationToken cancellationToken)
     {
-        if (!RefreshTokenSecret.TryHash(refreshToken, out var hash))
+        if (!TokenSecret.TryHash(refreshToken, out var hash))
         {
             return;
         }
@@ -202,7 +202,7 @@ public sealed partial class SessionService(
     private (RefreshTokenRecord Record, string Secret) NewToken(
         ApplicationUser user, Guid familyId, DateTimeOffset now, DateTimeOffset familyExpiresAt)
     {
-        var secret = RefreshTokenSecret.Generate();
+        var secret = TokenSecret.Generate();
         var idleExpiry = now + _options.IdleLifetime;
 
         var record = new RefreshTokenRecord
@@ -210,7 +210,7 @@ public sealed partial class SessionService(
             Id = Guid.NewGuid(),
             UserId = user.Id,
             FamilyId = familyId,
-            TokenHash = RefreshTokenSecret.TryHash(secret, out var hash) ? hash : throw new InvalidOperationException(),
+            TokenHash = TokenSecret.TryHash(secret, out var hash) ? hash : throw new InvalidOperationException(),
             SecurityStamp = user.SecurityStamp ?? string.Empty,
             CreatedAt = now,
             ExpiresAt = idleExpiry < familyExpiresAt ? idleExpiry : familyExpiresAt,

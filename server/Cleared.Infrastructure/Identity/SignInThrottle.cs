@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Cleared.Application.Abstractions;
 using Cleared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +16,7 @@ public sealed class SignInThrottle(
 
     public async Task<SignInTry> BeginAsync(string email, CancellationToken cancellationToken)
     {
-        var hash = HashOf(email);
+        var hash = EmailKey.Hash(email);
         var now = clock.UtcNow;
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -56,7 +54,7 @@ public sealed class SignInThrottle(
 
     public Task ClearAsync(string email, CancellationToken cancellationToken)
     {
-        var hash = HashOf(email);
+        var hash = EmailKey.Hash(email);
 
         return Throttles.Where(t => t.EmailHash == hash).ExecuteDeleteAsync(cancellationToken);
     }
@@ -87,7 +85,4 @@ public sealed class SignInThrottle(
             $"DELETE FROM sign_in_throttles WHERE ctid IN (SELECT ctid FROM sign_in_throttles WHERE updated_at < {cutoff} LIMIT {PurgeBatch})",
             cancellationToken);
     }
-
-    private static byte[] HashOf(string email) =>
-        SHA256.HashData(Encoding.UTF8.GetBytes(email.Trim().ToUpperInvariant()));
 }

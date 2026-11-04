@@ -4,7 +4,8 @@ using System.Text;
 
 namespace Cleared.Infrastructure.Identity;
 
-internal static class RefreshTokenSecret
+// The secret behind a refresh token or a password reset link.
+internal static class TokenSecret
 {
     private const int SecretBytes = 32;
 

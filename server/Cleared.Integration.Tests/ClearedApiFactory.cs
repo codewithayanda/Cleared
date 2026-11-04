@@ -1,8 +1,11 @@
+using Cleared.Application.Abstractions;
 using Cleared.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
@@ -16,9 +19,13 @@ public sealed class ClearedApiFactory : WebApplicationFactory<Program>, IAsyncLi
     // over 64 bytes so a test can also sign with HS512, which refuses shorter keys.
     public const string SigningKey = "integration-tests-only-signing-key-0123456789-0123456789-0123456789-0123456789";
 
-    private static readonly string[] RateLimitRules = ["Login", "Register", "Session", "Api"];
+    private static readonly string[] RateLimitRules =
+        ["Login", "Register", "Session", "ForgotPassword", "ResetPassword", "Api"];
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17").Build();
+
+    // Every copy of the API started from this one sends its mail here, so no test sends a real email.
+    public CapturingEmailSender Emails { get; } = new();
 
     // "localhost" resolves to IPv6 first and stalls against the container's mapped port here.
     public string ConnectionString => new NpgsqlConnectionStringBuilder(_postgres.GetConnectionString())
@@ -55,6 +62,8 @@ public sealed class ClearedApiFactory : WebApplicationFactory<Program>, IAsyncLi
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Cleared", ConnectionString);
         builder.UseSetting("Jwt:SigningKey", SigningKey);
+        builder.UseSetting("App:PublicUrl", "http://localhost:4200");
+        builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton<IEmailSender>(Emails)));
 
         // The suite registers hundreds of tenants from one address, so this copy is all but unlimited.
         // RateLimitTests starts copies with small limits.

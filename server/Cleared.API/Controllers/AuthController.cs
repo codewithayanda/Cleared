@@ -26,10 +26,11 @@ public sealed class AuthController(
     RefreshCookie refreshCookie,
     PasswordTimingEqualizer passwordTiming,
     ISignInThrottle signInThrottle,
+    IPasswordResetService passwordResetService,
     RegisterTenantService registerTenantService,
     IUnitOfWork unitOfWork) : ControllerBase
 {
-    private const string InvalidEmailMessage = "Enter a valid email address.";
+    private const string _invalidEmailMessage = "Enter a valid email address.";
 
     [HttpPost("register")]
     [EnableRateLimiting(RateLimitPolicies.Register)]
@@ -38,7 +39,7 @@ public sealed class AuthController(
     {
         if (!EmailAddressRule.IsValid(request.Email))
         {
-            return RegistrationFailed(new Dictionary<string, string[]> { ["email"] = [InvalidEmailMessage] });
+            return RegistrationFailed(new Dictionary<string, string[]> { ["email"] = [_invalidEmailMessage] });
         }
 
         // The company and its Owner are created together or not at all. A duplicate email or a
@@ -134,6 +135,39 @@ public sealed class AuthController(
         return NoContent();
     }
 
+    // The same answer for an email with an account and one without, so it never shows which emails have one.
+    [HttpPost("forgot-password")]
+    [EnableRateLimiting(RateLimitPolicies.ForgotPassword)]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        if (!EmailAddressRule.IsValid(request.Email))
+        {
+            return FieldProblem("That is not an email address.", "email", _invalidEmailMessage);
+        }
+
+        var outcome = await passwordResetService.RequestAsync(request.Email, cancellationToken);
+
+        return outcome.RetryAfter is { } wait
+            ? TooManyAttempts(wait, "Too many reset requests for this email. Try again later.")
+            : Accepted();
+    }
+
+    // Signs nobody in: the new password is typed again at the sign-in page.
+    [HttpPost("reset-password")]
+    [EnableRateLimiting(RateLimitPolicies.ResetPassword)]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var outcome = await passwordResetService.ResetAsync(request.Token, request.NewPassword, cancellationToken);
+
+        return outcome.Result switch
+        {
+            ResetResult.Succeeded => NoContent(),
+            ResetResult.InvalidLink => FieldProblem(
+                "Password reset failed.", "token", "This link is invalid or has expired. Ask for a new one."),
+            _ => FieldProblem("Password reset failed.", "password", [.. outcome.PasswordProblems]),
+        };
+    }
+
     // One browser holds one session, so signing in replaces whatever session it still had.
     private async Task<AuthResponse> StartSessionAsync(ApplicationUser user, CancellationToken cancellationToken)
     {
@@ -151,6 +185,12 @@ public sealed class AuthController(
     private ActionResult RegistrationFailed(Dictionary<string, string[]> errors) =>
         ValidationProblem(new ValidationProblemDetails(errors) { Title = "Registration failed." });
 
+    private ActionResult FieldProblem(string title, string field, params string[] messages) =>
+        ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { [field] = messages })
+        {
+            Title = title,
+        });
+
     // Field names match the form, so the page can put each message next to its box. Identity reports
     // a taken email twice (the second time as a username), so it gets one sentence of ours instead.
     private static Dictionary<string, string[]> DescribeFailures(IEnumerable<IdentityError> errors) =>
@@ -158,7 +198,7 @@ public sealed class AuthController(
             .Select(error => error.Code switch
             {
                 "DuplicateEmail" or "DuplicateUserName" => new Failure("email", "An account with this email already exists."),
-                "InvalidEmail" or "InvalidUserName" => new Failure("email", InvalidEmailMessage),
+                "InvalidEmail" or "InvalidUserName" => new Failure("email", _invalidEmailMessage),
                 var code when code.StartsWith("Password", StringComparison.Ordinal) => new Failure("password", error.Description),
                 _ => new Failure(string.Empty, error.Description),
             })
@@ -170,7 +210,7 @@ public sealed class AuthController(
     private ActionResult Failed(SignInTry attempt) =>
         attempt.LockedIfWrong is { } wait ? TooManyAttempts(wait) : InvalidCredentials();
 
-    private ActionResult TooManyAttempts(TimeSpan wait)
+    private ActionResult TooManyAttempts(TimeSpan wait, string title = "Too many wrong passwords. Try again later.")
     {
         Response.Headers.RetryAfter = Math.Ceiling(wait.TotalSeconds).ToString(CultureInfo.InvariantCulture);
 
@@ -179,7 +219,7 @@ public sealed class AuthController(
             new ProblemDetails
             {
                 Status = StatusCodes.Status429TooManyRequests,
-                Title = "Too many wrong passwords. Try again later.",
+                Title = title,
             });
     }
 

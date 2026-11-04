@@ -14,6 +14,7 @@ using Cleared.Application.Tenants;
 using Cleared.Domain.Common;
 using Cleared.Infrastructure;
 using Cleared.Infrastructure.Documents;
+using Cleared.Infrastructure.Email;
 using Cleared.Infrastructure.Identity;
 using Cleared.Infrastructure.Persistence;
 using Cleared.Infrastructure.Persistence.Repositories;
@@ -50,7 +51,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<ClearedDbContext>()
-    .AddSignInManager();
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
 
 var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
     ?? throw new InvalidOperationException(
@@ -125,6 +127,21 @@ builder.Services.AddOptions<SignInThrottleOptions>()
         "SignInThrottle needs MaxTries above zero, and a ForgetAfter longer than LockDuration.")
     .ValidateOnStart();
 builder.Services.AddScoped<ISignInThrottle, SignInThrottle>();
+builder.Services.AddOptions<AppOptions>()
+    .Bind(builder.Configuration.GetSection(AppOptions.SectionName))
+    .Validate(
+        options => Uri.TryCreate(options.PublicUrl, UriKind.Absolute, out var url) && url.Scheme is "http" or "https",
+        "App:PublicUrl must be the address where people open the web app, starting with http:// or https://.")
+    .ValidateOnStart();
+builder.Services.AddOptions<PasswordResetOptions>()
+    .Bind(builder.Configuration.GetSection(PasswordResetOptions.SectionName))
+    .Validate(
+        options => options.TokenLifetime > TimeSpan.Zero && options.Window > TimeSpan.Zero && options.MaxRequestsPerWindow > 0,
+        "PasswordReset needs a TokenLifetime and a Window above zero, and a MaxRequestsPerWindow above zero.")
+    .ValidateOnStart();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddEmail(builder.Environment);
+
 builder.Services.AddScoped<RefreshCookie>();
 builder.Services.AddScoped<PasswordTimingEqualizer>();
 builder.Services.AddSingleton<IClock, SystemClock>();
