@@ -57,6 +57,10 @@ applies the migrations to it, and discards it afterwards. It never reads user se
 touches a database you care about. It needs a container runtime: Docker, or Podman with its
 machine running (`podman machine start`).
 
+`SmtpEmailTests` also starts a throwaway Mailpit container, a real SMTP server that keeps what it receives, and reads
+each message back through its HTTP API. `SmtpFailureTests` uses a tiny fake SMTP server to make refusals and timeouts
+happen on demand.
+
 Every endpoint that touches tenant data needs an entry in `IsolationCases.All`, which makes a
 second tenant attack the first one's data. `EndpointGuardTests` reads the routing table and
 fails when an endpoint has neither an entry nor a reason to be exempt, so a new route cannot
@@ -108,9 +112,34 @@ hour, and the API answers the same for an email with an account and one without.
 in the email points at. It is `http://localhost:4200` in `appsettings.Development.json`, and the API refuses to
 start without one.
 
-There is no real email sender yet. In Development the API prints each email to its console, link included, so that
+By default no email is sent. In Development the API prints each email to its console, link included, so that
 is where to find a reset link. Everywhere else a message is dropped with a warning that never carries the address
-or the link.
+or the link. Set `Email:Smtp:Host` and the API sends through that SMTP server instead, in every environment.
+The other settings are `Port` (587), `TlsMode` (`StartTls`, `SslOnConnect` or `None`), `Username`, `Password`,
+`From` (required), `FromName` (`Cleared`) and `Timeout` (15 seconds for each step). `StartTls` refuses a server
+that cannot encrypt, and a username is only allowed with `StartTls` or `SslOnConnect`, so a password never crosses
+the network in the clear. The API refuses to start with settings that break these rules. A message the server
+refuses is dropped and logged as one fixed sentence, with no address, link or password in it, and it is not retried.
+
+To read emails on your own machine, run Mailpit, a mail catcher that keeps every message and shows it at
+`http://localhost:8025`. It needs no account and nothing leaves your laptop:
+
+```bash
+podman run -d --name cleared-mail -p 1025:1025 -p 8025:8025 axllent/mailpit:v1.33.0
+```
+
+Then point the API at it from `server/Cleared.API`, and restart the API:
+
+```bash
+dotnet user-secrets set "Email:Smtp:Host" "localhost"
+dotnet user-secrets set "Email:Smtp:Port" "1025"
+dotnet user-secrets set "Email:Smtp:TlsMode" "None"
+dotnet user-secrets set "Email:Smtp:From" "no-reply@cleared.test"
+```
+
+Remove those four settings with `dotnet user-secrets remove` to go back to printing in the console, and use
+`podman start cleared-mail` after the machine has restarted. A real provider's password goes in the same way, typed
+by you into `dotnet user-secrets`, never into a file in the repo.
 
 ## Conventions
 
@@ -126,3 +155,4 @@ or the link.
 - A reset link's secret sits after the `#`, so it never reaches a server log or a `Referer` header. The page reads it once and removes it from the address bar. Only a hash of it is stored (`password_reset_tokens`), and the database allows one live link per person.
 - CI scans dependencies on every push. The NuGet scan fails on any known vulnerability, and `npm audit --audit-level=high` fails the client on a high or critical advisory. Dev tools count, because they run in CI and on a laptop. Run the same command in `client` to see what CI sees.
 - `client/package.json` pins `vite` to 8.3.5 with `overrides`, because `@angular/build` 22.2.1 pins vite 8.3.0, which has high advisories. Remove the override once Angular is updated to 22.2.5 or later, whose `@angular/build` pins a patched vite. Angular's packages pin each other's versions exactly, so update them together with `ng update`, never one at a time.
+- A sender that fails throws `EmailDeliveryException` with a fixed message and no inner exception, because a mail server's reply often repeats the address it refused and a log is readable by many people. `SmtpEmailSender` also names the domain of `Email:Smtp:From` in the hello and the message id, so the name of the machine it runs on never leaves it. `SmtpFailureTests` proves the address, the link, the user name and the password stay out.
