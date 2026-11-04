@@ -174,6 +174,17 @@ internal sealed class FakeCurrentUserContext(Guid userId) : ICurrentUserContext
     public Guid UserId => userId;
 }
 
+// Says whether the signed-in person's email is confirmed, so a test can set it either way.
+internal sealed class FakeEmailVerification(bool confirmed) : IEmailVerificationService
+{
+    public Task<VerificationRequestOutcome> RequestAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult(VerificationRequestOutcome.Sent());
+
+    public Task<bool> ConfirmAsync(string token, CancellationToken cancellationToken) => Task.FromResult(true);
+
+    public Task<bool> IsVerifiedAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(confirmed);
+}
+
 internal sealed class FakeInvoicePdfRenderer : IInvoicePdfRenderer
 {
     public byte[] Render(InvoiceResponse invoice, CustomerResponse customer, TenantResponse tenant) => [1, 2, 3];

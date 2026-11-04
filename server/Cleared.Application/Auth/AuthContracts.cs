@@ -13,4 +13,9 @@ public sealed record ForgotPasswordRequest(string Email);
 // The token is the secret in the emailed link. Nothing here names a user: the link does.
 public sealed record ResetPasswordRequest(string Token, string NewPassword);
 
+// The token is the secret in the emailed link. It is the only thing that names the account.
+public sealed record VerifyEmailRequest(string Token);
+
 public sealed record AuthResponse(string AccessToken);
+
+public sealed record UserResponse(string Email, bool EmailVerified);

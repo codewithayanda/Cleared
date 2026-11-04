@@ -112,6 +112,14 @@ hour, and the API answers the same for an email with an account and one without.
 in the email points at. It is `http://localhost:4200` in `appsettings.Development.json`, and the API refuses to
 start without one.
 
+Signing up sends a link that confirms the email address, and a signed-in person can ask for another from the notice at
+the top of the app (`POST /users/me/email-verification`). The link opens a page with a button, and only the button
+confirms (`POST /auth/verify-email`), so a mail scanner that fetches the link cannot use it up. A link works once and for
+24 hours, a person has one live link at a time, and may be sent 3 an hour, the one at sign-up included. Change these
+with `EmailVerification:TokenLifetime`, `MaxRequestsPerWindow` and `Window`, and the per-address limit on confirming
+with `RateLimits:VerifyEmail`. Until the email is confirmed an account works as usual, with the notice showing, but it
+cannot change its banking details (`PUT /tenants/me`). Accounts made before confirmation existed start unconfirmed.
+
 By default no email is sent. In Development the API prints each email to its console, link included, so that
 is where to find a reset link. Everywhere else a message is dropped with a warning that never carries the address
 or the link. Set `Email:Smtp:Host` and the API sends through that SMTP server instead, in every environment.
@@ -156,3 +164,4 @@ by you into `dotnet user-secrets`, never into a file in the repo.
 - CI scans dependencies on every push. The NuGet scan fails on any known vulnerability, and `npm audit --audit-level=high` fails the client on a high or critical advisory. Dev tools count, because they run in CI and on a laptop. Run the same command in `client` to see what CI sees.
 - `client/package.json` pins `vite` to 8.3.5 with `overrides`, because `@angular/build` 22.2.1 pins vite 8.3.0, which has high advisories. Remove the override once Angular is updated to 22.2.5 or later, whose `@angular/build` pins a patched vite. Angular's packages pin each other's versions exactly, so update them together with `ng update`, never one at a time.
 - A sender that fails throws `EmailDeliveryException` with a fixed message and no inner exception, because a mail server's reply often repeats the address it refused and a log is readable by many people. `SmtpEmailSender` also names the domain of `Email:Smtp:From` in the hello and the message id, so the name of the machine it runs on never leaves it. `SmtpFailureTests` proves the address, the link, the user name and the password stay out.
+- What an unconfirmed account may not do is decided on the server from the account's own flag (`EmailConfirmed`), read when the request is made, never from a link or a claim in the token. Today that is changing banking details (`RegisterTenantService.UpdateProfileAsync`). Sending an invoice by email and sharing an invoice link need the same check when they exist. `CreateTenantAsync` makes test accounts confirmed so the rest of the suite is not held back, and a test about confirming asks for `confirmEmail: false`.

@@ -17,9 +17,12 @@ public sealed class RateLimitOptions
 
     public RateLimitRule ResetPassword { get; set; } = new() { PermitLimit = 10, Window = TimeSpan.FromHours(1) };
 
+    public RateLimitRule VerifyEmail { get; set; } = new() { PermitLimit = 10, Window = TimeSpan.FromHours(1) };
+
     public RateLimitRule Api { get; set; } = new() { PermitLimit = 300, Window = TimeSpan.FromMinutes(1) };
 
-    public IReadOnlyList<RateLimitRule> AllRules() => [Login, Register, Session, ForgotPassword, ResetPassword, Api];
+    public IReadOnlyList<RateLimitRule> AllRules() =>
+        [Login, Register, Session, ForgotPassword, ResetPassword, VerifyEmail, Api];
 }
 
 public sealed class RateLimitRule

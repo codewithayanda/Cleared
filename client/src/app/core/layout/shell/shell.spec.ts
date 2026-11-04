@@ -1,17 +1,27 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Subject } from 'rxjs';
+import { EMPTY, Subject } from 'rxjs';
+import { Account } from '@core/models/auth.model';
+import { AccountService } from '@core/services/account.service';
 import { AuthService } from '@core/services/auth.service';
 import { Shell } from './shell';
 
 describe('Shell sign out', () => {
   let logout: Subject<void>;
 
+  // Nobody is known yet, so the notice about an unconfirmed email stays out of these tests.
+  const accounts = { account: signal<Account | null>(null), load: () => EMPTY };
+
   beforeEach(() => {
     logout = new Subject<void>();
     TestBed.configureTestingModule({
       imports: [Shell],
-      providers: [provideRouter([]), { provide: AuthService, useValue: { logout: () => logout } }],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { logout: () => logout } },
+        { provide: AccountService, useValue: accounts },
+      ],
     });
   });
 

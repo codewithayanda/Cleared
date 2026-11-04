@@ -1,0 +1,30 @@
+@if (accounts.account(); as account) {
+  @if (!account.emailVerified) {
+    <div
+      role="status"
+      class="mb-6 rounded-md border border-gold-400 bg-gold-100 px-4 py-3 text-sm text-steel-800"
+    >
+      <p>
+        <strong class="font-medium">Confirm your email address.</strong>
+        We sent a link to {{ account.email }}. Until you confirm it, banking details cannot be
+        changed.
+      </p>
+      <div class="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          (click)="resend()"
+          [disabled]="sending()"
+          class="rounded-md bg-gold-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gold-700 disabled:opacity-60"
+        >
+          {{ sending() ? 'Sending…' : 'Send the link again' }}
+        </button>
+        @if (sent()) {
+          <span class="text-xs font-medium text-status-paid">Sent. Check your email.</span>
+        }
+        @if (errorMessage()) {
+          <span class="text-xs text-status-overdue" role="alert">{{ errorMessage() }}</span>
+        }
+      </div>
+    </div>
+  }
+}

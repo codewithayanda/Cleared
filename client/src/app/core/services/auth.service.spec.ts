@@ -140,6 +140,19 @@ describe('AuthService', () => {
     expect(localStorage.getItem(HINT_KEY)).toBeNull();
   });
 
+  it('verifyEmail posts only the link secret, as an auth call, and signs nobody in', () => {
+    service.verifyEmail({ token: 'secret' }).subscribe();
+
+    const request = httpMock.expectOne(`${environment.apiUrl}/auth/verify-email`);
+    request.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ token: 'secret' });
+    expect(request.request.context.get(AUTH_ENDPOINT)).toBe(true);
+    expect(service.isAuthenticated()).toBe(false);
+    expect(localStorage.getItem(HINT_KEY)).toBeNull();
+  });
+
   describe('restoring a session at startup', () => {
     it('does not call the API when nobody was signed in', async () => {
       await service.restore();

@@ -1,3 +1,4 @@
+using Cleared.Application.Auth;
 using Cleared.Application.Idempotency;
 using Cleared.Domain.Invoicing;
 using Microsoft.AspNetCore.Diagnostics;
@@ -17,6 +18,9 @@ public sealed class DomainExceptionHandler(IHostEnvironment environment) : IExce
         {
             // A well-formed request blocked by a legal or business rule about the data
             // itself, not malformed input (400) or a state conflict (409).
+            // Allowed, but not yet: the person must first confirm their email. 403 and not 401, because
+            // signing in again would change nothing.
+            EmailNotVerifiedException => (StatusCodes.Status403Forbidden, "Confirm your email address first."),
             TaxInvoiceValidationException => (StatusCodes.Status422UnprocessableEntity, "This tax invoice is missing required fields."),
             IdempotencyKeyReusedException => (StatusCodes.Status422UnprocessableEntity, "This Idempotency-Key was already used for a different request."),
             ArgumentException => (StatusCodes.Status400BadRequest, "Invalid request."),
@@ -40,6 +44,12 @@ public sealed class DomainExceptionHandler(IHostEnvironment environment) : IExce
         if (exception is TaxInvoiceValidationException taxInvoiceValidationException)
         {
             problemDetails.Extensions["missingFields"] = taxInvoiceValidationException.MissingFields;
+        }
+
+        // A name the page can act on, which a sentence is not.
+        if (exception is EmailNotVerifiedException)
+        {
+            problemDetails.Extensions["code"] = "email_not_verified";
         }
 
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);

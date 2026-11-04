@@ -33,21 +33,38 @@ public sealed class CapturingEmailSender : IEmailSender
 
 public static class EmailTestSupport
 {
-    private const string LinkMarker = "/reset-password#";
+    public const string ConfirmationSubject = "Confirm your Cleared email address";
+
+    private const string _resetMarker = "/reset-password#";
+    private const string _confirmMarker = "/verify-email#";
+
+    // Mail about passwords. Signing up also sends a confirmation link, which ConfirmationsToAsync reads,
+    // so a test about one kind of mail counts only that kind.
+    public static async Task<IReadOnlyList<EmailMessage>> SentToAsync(
+        this ClearedApiFactory factory, string address, WebApplicationFactory<Program>? host = null) =>
+        (await AllSentToAsync(factory, address, host)).Where(message => message.Subject != ConfirmationSubject).ToList();
+
+    public static async Task<IReadOnlyList<EmailMessage>> ConfirmationsToAsync(
+        this ClearedApiFactory factory, string address, WebApplicationFactory<Program>? host = null) =>
+        (await AllSentToAsync(factory, address, host)).Where(message => message.Subject == ConfirmationSubject).ToList();
+
+    // The secret in the emailed link. It sits after the #, so it never reaches a server log.
+    public static string TokenIn(EmailMessage message) => SecretAfter(message, _resetMarker);
+
+    public static string ConfirmationTokenIn(EmailMessage message) => SecretAfter(message, _confirmMarker);
 
     // Mail leaves after the response, so wait until the queue is empty before reading what was sent.
-    public static async Task<IReadOnlyList<EmailMessage>> SentToAsync(
-        this ClearedApiFactory factory, string address, WebApplicationFactory<Program>? host = null)
+    private static async Task<IReadOnlyList<EmailMessage>> AllSentToAsync(
+        ClearedApiFactory factory, string address, WebApplicationFactory<Program>? host)
     {
         await (host ?? factory).Services.GetRequiredService<EmailQueue>().WaitUntilIdleAsync(TimeSpan.FromSeconds(10));
 
         return factory.Emails.SentTo(address);
     }
 
-    // The secret in the emailed link. It sits after the #, so it never reaches a server log.
-    public static string TokenIn(EmailMessage message)
+    private static string SecretAfter(EmailMessage message, string marker)
     {
-        var start = message.Body.IndexOf(LinkMarker, StringComparison.Ordinal) + LinkMarker.Length;
+        var start = message.Body.IndexOf(marker, StringComparison.Ordinal) + marker.Length;
 
         return message.Body[start..].Split('\n', '\r', ' ')[0];
     }
