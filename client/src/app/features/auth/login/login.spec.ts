@@ -82,6 +82,24 @@ describe('Login', () => {
     expect(element.textContent).toContain('locked for 15 minutes after 5 wrong passwords');
   });
 
+  it('offers a way back in to someone who forgot the password', () => {
+    const { element } = open();
+
+    expect(element.querySelector('a[href="/forgot-password"]')?.textContent).toContain(
+      'Forgot your password?',
+    );
+  });
+
+  it('points a locked-out person at the reset, which is the way back in right away', () => {
+    const { element, failWith } = open();
+    expect(element.textContent).not.toContain('Locked out?');
+
+    failWith(refused('900'));
+
+    expect(element.textContent).toContain('Locked out?');
+    expect(element.querySelector('p.login-forgot a[href="/forgot-password"]')).not.toBeNull();
+  });
+
   it('says the details were wrong each time the server says 401, and counts nothing itself', () => {
     const { failWith, alert, button } = open();
 

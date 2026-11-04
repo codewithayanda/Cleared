@@ -19,6 +19,8 @@ public class IdempotencyGuardTests(ClearedApiFactory factory)
         ["POST api/v1/auth/login"] = "changes nothing a repeat could duplicate",
         ["POST api/v1/auth/refresh"] = "single use by design, a repeat is read as a stolen token and ends the session",
         ["POST api/v1/auth/logout"] = "ending a session that has ended changes nothing",
+        ["POST api/v1/auth/forgot-password"] = "a repeat asks for another link, which the cap on each email counts and which ends the older one",
+        ["POST api/v1/auth/reset-password"] = "single use by design, a repeat finds the link already used",
         ["PUT api/v1/tenants/me"] = "a PUT, so repeating it has the same effect as doing it once",
     };
 

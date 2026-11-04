@@ -94,12 +94,20 @@
         @if (form.controls.password.invalid && form.controls.password.touched) {
           <p class="login-error">Enter your password.</p>
         }
+        <p class="login-forgot">
+          <a routerLink="/forgot-password" class="login-footer-link">Forgot your password?</a>
+        </p>
       </div>
 
       @if (locked()) {
         <p class="login-alert" role="alert">
           Too many attempts. You can try again in
           {{ countdown() }}.
+        </p>
+        <p class="login-forgot">
+          Locked out?
+          <a routerLink="/forgot-password" class="login-footer-link">Reset your password</a>
+          to sign in again now.
         </p>
       }
 

@@ -711,6 +711,77 @@ namespace Cleared.Infrastructure.Persistence.Migrations
                     b.ToTable("invoice_number_sequences", (string)null);
                 });
 
+            modelBuilder.Entity("Cleared.Infrastructure.Persistence.PasswordResetThrottleRecord", b =>
+                {
+                    b.Property<byte[]>("EmailHash")
+                        .HasMaxLength(32)
+                        .HasColumnType("bytea")
+                        .HasColumnName("email_hash");
+
+                    b.Property<int>("Requests")
+                        .HasColumnType("integer")
+                        .HasColumnName("requests");
+
+                    b.Property<DateTimeOffset>("WindowStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("window_start");
+
+                    b.HasKey("EmailHash")
+                        .HasName("pk_password_reset_throttles");
+
+                    b.HasIndex("WindowStart")
+                        .HasDatabaseName("ix_password_reset_throttles_window_start");
+
+                    b.ToTable("password_reset_throttles", (string)null);
+                });
+
+            modelBuilder.Entity("Cleared.Infrastructure.Persistence.PasswordResetTokenRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("bytea")
+                        .HasColumnName("token_hash");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_password_reset_tokens");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_password_reset_tokens_expires_at");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_password_reset_tokens_token_hash");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_password_reset_tokens_user_id")
+                        .HasFilter("consumed_at IS NULL");
+
+                    b.ToTable("password_reset_tokens", (string)null);
+                });
+
             modelBuilder.Entity("Cleared.Infrastructure.Persistence.RefreshTokenRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -985,6 +1056,16 @@ namespace Cleared.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_invoice_line_items_invoices_invoice_id");
+                });
+
+            modelBuilder.Entity("Cleared.Infrastructure.Persistence.PasswordResetTokenRecord", b =>
+                {
+                    b.HasOne("Cleared.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_password_reset_tokens_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("Cleared.Infrastructure.Persistence.RefreshTokenRecord", b =>

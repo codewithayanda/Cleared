@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { environment } from '@env';
+import { AUTH_ENDPOINT } from '@core/interceptors/auth-context';
 import { RegisterRequest } from '@core/models/auth.model';
 import { installFakeLocks, removeFakeLocks } from '@core/testing/fake-locks';
 import { tokenLivingFor } from '@core/testing/jwt';
@@ -112,6 +113,30 @@ describe('AuthService', () => {
 
     service.clearSession();
 
+    expect(localStorage.getItem(HINT_KEY)).toBeNull();
+  });
+
+  it('forgotPassword posts only the email, as an auth call, and signs nobody in', () => {
+    service.forgotPassword({ email: 'a@b.co.za' }).subscribe();
+
+    const request = httpMock.expectOne(`${environment.apiUrl}/auth/forgot-password`);
+    request.flush(null, { status: 202, statusText: 'Accepted' });
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ email: 'a@b.co.za' });
+    expect(request.request.context.get(AUTH_ENDPOINT)).toBe(true);
+    expect(service.isAuthenticated()).toBe(false);
+  });
+
+  it('resetPassword posts the link secret and the new password, and signs nobody in', () => {
+    service.resetPassword({ token: 'secret', newPassword: 'Abcdefghij1' }).subscribe();
+
+    const request = httpMock.expectOne(`${environment.apiUrl}/auth/reset-password`);
+    request.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(request.request.body).toEqual({ token: 'secret', newPassword: 'Abcdefghij1' });
+    expect(request.request.context.get(AUTH_ENDPOINT)).toBe(true);
+    expect(service.isAuthenticated()).toBe(false);
     expect(localStorage.getItem(HINT_KEY)).toBeNull();
   });
 

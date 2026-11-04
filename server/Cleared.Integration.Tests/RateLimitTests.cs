@@ -103,6 +103,52 @@ public class RateLimitTests(ClearedApiFactory factory)
     }
 
     [Fact]
+    public async Task Asking_for_a_reset_link_has_its_own_limit_apart_from_sign_in()
+    {
+        using var host = Limited(("ForgotPassword", 2, HalfAMinute));
+        using var client = host.CreateAnonymousClient();
+        var email = $"nobody-{Guid.NewGuid():N}@example.test";
+
+        var statuses = new List<HttpStatusCode>();
+        for (var call = 0; call < 3; call++)
+        {
+            using var response = await client.PostAsJsonAsync(
+                "api/v1/auth/forgot-password", new ForgotPasswordRequest(email), ApiJson.Options);
+            statuses.Add(response.StatusCode);
+        }
+
+        var signIn = await SignInAsync(client, email, WrongPassword);
+
+        Assert.Equal([HttpStatusCode.Accepted, HttpStatusCode.Accepted, HttpStatusCode.TooManyRequests], statuses);
+        Assert.Equal(HttpStatusCode.Unauthorized, signIn);
+    }
+
+    [Fact]
+    public async Task Using_a_reset_link_has_its_own_limit_apart_from_asking_for_one()
+    {
+        using var host = Limited(("ResetPassword", 2, HalfAMinute));
+        using var client = host.CreateAnonymousClient();
+
+        var statuses = new List<HttpStatusCode>();
+        for (var call = 0; call < 3; call++)
+        {
+            using var response = await client.PostAsJsonAsync(
+                "api/v1/auth/reset-password",
+                new ResetPasswordRequest(new string('A', 43), "Brand-New-Password-2!"),
+                ApiJson.Options);
+            statuses.Add(response.StatusCode);
+        }
+
+        using var asking = await client.PostAsJsonAsync(
+            "api/v1/auth/forgot-password",
+            new ForgotPasswordRequest($"nobody-{Guid.NewGuid():N}@example.test"),
+            ApiJson.Options);
+
+        Assert.Equal([HttpStatusCode.BadRequest, HttpStatusCode.BadRequest, HttpStatusCode.TooManyRequests], statuses);
+        Assert.Equal(HttpStatusCode.Accepted, asking.StatusCode);
+    }
+
+    [Fact]
     public async Task Refreshing_and_signing_out_share_one_allowance()
     {
         using var host = Limited(("Session", 3, HalfAMinute));
@@ -169,6 +215,8 @@ public class RateLimitTests(ClearedApiFactory factory)
 
     [Theory]
     [InlineData("RateLimits:Login:PermitLimit", "0")]
+    [InlineData("RateLimits:ForgotPassword:PermitLimit", "0")]
+    [InlineData("RateLimits:ResetPassword:Window", "00:00:00")]
     [InlineData("RateLimits:Api:Window", "00:00:00")]
     public void Impossible_limits_stop_the_API_from_starting(string setting, string value)
     {

@@ -8,4 +8,9 @@ public sealed record RegisterRequest(RegisterTenantRequest Company, string Email
 
 public sealed record LoginRequest(string Email, string Password);
 
+public sealed record ForgotPasswordRequest(string Email);
+
+// The token is the secret in the emailed link. Nothing here names a user: the link does.
+public sealed record ResetPasswordRequest(string Token, string NewPassword);
+
 public sealed record AuthResponse(string AccessToken);

@@ -72,6 +72,10 @@
   @apply rounded-md bg-red-50 px-3 py-2 text-sm text-status-overdue;
 }
 
+.login-forgot {
+  @apply mt-2 text-sm text-steel-500;
+}
+
 .login-submit {
   @apply w-full rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700 disabled:opacity-60;
 }

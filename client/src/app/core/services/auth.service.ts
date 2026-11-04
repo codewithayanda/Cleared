@@ -4,7 +4,13 @@ import { Router } from '@angular/router';
 import { Observable, firstValueFrom, tap, timeout } from 'rxjs';
 import { environment } from '@env';
 import { authEndpoint } from '@core/interceptors/auth-context';
-import { AuthResponse, LoginRequest, RegisterRequest } from '@core/models/auth.model';
+import {
+  AuthResponse,
+  ForgotPasswordRequest,
+  LoginRequest,
+  RegisterRequest,
+  ResetPasswordRequest,
+} from '@core/models/auth.model';
 import { signedInHint } from '@core/utils/signed-in-hint';
 import { withTabLock } from '@core/utils/tab-lock';
 
@@ -74,6 +80,20 @@ export class AuthService implements OnDestroy {
         context: authEndpoint(),
       })
       .pipe(tap((response) => this.setSession(response)));
+  }
+
+  // The same answer whether or not the address has an account, so the page can never say which.
+  forgotPassword(request: ForgotPasswordRequest): Observable<void> {
+    return this.http.post<void>(`${environment.apiUrl}/auth/forgot-password`, request, {
+      context: authEndpoint(),
+    });
+  }
+
+  // Never signs anyone in: the new password is typed again at the sign-in page.
+  resetPassword(request: ResetPasswordRequest): Observable<void> {
+    return this.http.post<void>(`${environment.apiUrl}/auth/reset-password`, request, {
+      context: authEndpoint(),
+    });
   }
 
   // Runs once, before the first route. Without the flag nobody can be signed in, so skip the call.
