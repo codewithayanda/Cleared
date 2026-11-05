@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, OnDestroy, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { Observable, firstValueFrom, tap, timeout } from 'rxjs';
+import { Observable, catchError, firstValueFrom, of, tap, timeout } from 'rxjs';
 import { environment } from '@env';
 import { authEndpoint } from '@core/interceptors/auth-context';
 import {
@@ -23,9 +23,14 @@ interface DecodedClaims {
 
 const REFRESH_LOCK = 'cleared-refresh';
 const REFRESH_TIMEOUT_MS = 10_000;
+const LOGOUT_TIMEOUT_MS = 5_000;
 const EXPIRY_MARGIN_MS = 30_000;
 const CHANNEL_NAME = 'cleared-auth';
 const SIGNED_OUT = 'signed-out';
+const SIGNED_OUT_IDLE = 'signed-out-idle';
+
+// The sign-in page reads the reason from the address and says it in words.
+export const IDLE_LOGIN_URL = '/login?reason=idle';
 
 // The access token lives in memory only, never localStorage or sessionStorage: both are readable
 // by any script, so one XSS would leak a live session. The refresh token is an HttpOnly cookie
@@ -47,9 +52,9 @@ export class AuthService implements OnDestroy {
 
   constructor() {
     this.channel?.addEventListener('message', (event: MessageEvent) => {
-      if (event.data === SIGNED_OUT) {
+      if (event.data === SIGNED_OUT || event.data === SIGNED_OUT_IDLE) {
         this.clearSession();
-        this.router.navigateByUrl('/login');
+        this.router.navigateByUrl(event.data === SIGNED_OUT_IDLE ? IDLE_LOGIN_URL : '/login');
       }
     });
   }
@@ -139,6 +144,22 @@ export class AuthService implements OnDestroy {
           this.router.navigateByUrl('/login');
         }),
       );
+  }
+
+  // For someone who has gone away, or who chose to leave from the inactivity warning: nobody is there
+  // to read an error, so the server is told if it can be reached and the session ends here either way.
+  signOutQuietly(reason?: 'idle'): void {
+    this.http
+      .post<void>(`${environment.apiUrl}/auth/logout`, null, { context: authEndpoint() })
+      .pipe(
+        timeout(LOGOUT_TIMEOUT_MS),
+        catchError(() => of(undefined)),
+      )
+      .subscribe(() => {
+        this.clearSession();
+        this.channel?.postMessage(reason === 'idle' ? SIGNED_OUT_IDLE : SIGNED_OUT);
+        this.router.navigateByUrl(reason === 'idle' ? IDLE_LOGIN_URL : '/login');
+      });
   }
 
   clearSession(): void {

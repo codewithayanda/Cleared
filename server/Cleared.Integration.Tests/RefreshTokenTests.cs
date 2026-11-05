@@ -146,24 +146,57 @@ public class RefreshTokenTests(ClearedApiFactory factory)
     }
 
     [Fact]
-    public async Task A_session_that_sits_idle_for_seven_days_is_over()
+    public async Task A_session_that_sits_idle_for_thirty_minutes_is_over()
     {
         var clock = new MutableClock();
         using var host = WithClock(clock);
         using var client = host.CreateAnonymousClient();
         var session = await SessionTestSupport.RegisterAsync(client);
 
-        clock.UtcNow = clock.UtcNow.AddDays(7).AddSeconds(1);
+        clock.UtcNow = clock.UtcNow.AddMinutes(30).AddSeconds(1);
         using var late = await client.SendAsync(SessionTestSupport.Refresh(session.RefreshToken));
 
         Assert.Equal(HttpStatusCode.Unauthorized, late.StatusCode);
     }
 
     [Fact]
-    public async Task A_session_slides_while_it_is_used_and_still_ends_at_the_absolute_limit()
+    public async Task A_session_that_has_been_idle_for_less_than_thirty_minutes_is_still_alive()
     {
         var clock = new MutableClock();
         using var host = WithClock(clock);
+        using var client = host.CreateAnonymousClient();
+        var session = await SessionTestSupport.RegisterAsync(client);
+
+        clock.UtcNow = clock.UtcNow.AddMinutes(29);
+        using var inTime = await client.SendAsync(SessionTestSupport.Refresh(session.RefreshToken));
+
+        Assert.Equal(HttpStatusCode.OK, inTime.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_session_that_is_used_every_twenty_minutes_goes_on_for_longer_than_thirty()
+    {
+        var clock = new MutableClock();
+        using var host = WithClock(clock);
+        using var client = host.CreateAnonymousClient();
+        var session = await SessionTestSupport.RegisterAsync(client);
+        var cookie = session.RefreshToken;
+
+        for (var step = 0; step < 6; step++)
+        {
+            clock.UtcNow = clock.UtcNow.AddMinutes(20);
+            using var response = await client.SendAsync(SessionTestSupport.Refresh(cookie));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            cookie = SessionTestSupport.RefreshCookieFrom(response)!;
+        }
+    }
+
+    [Fact]
+    public async Task A_session_slides_while_it_is_used_and_still_ends_at_the_absolute_limit()
+    {
+        var clock = new MutableClock();
+        using var host = WithClock(clock, idleLifetime: "7.00:00:00");
         using var client = host.CreateAnonymousClient();
         var session = await SessionTestSupport.RegisterAsync(client);
         var start = clock.UtcNow;
@@ -329,9 +362,16 @@ public class RefreshTokenTests(ClearedApiFactory factory)
             ("hash", hash)))!;
     }
 
-    private WebApplicationFactory<Program> WithClock(MutableClock clock) =>
+    private WebApplicationFactory<Program> WithClock(MutableClock clock, string? idleLifetime = null) =>
         factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services => services.AddSingleton<IClock>(clock)));
+        {
+            builder.ConfigureTestServices(services => services.AddSingleton<IClock>(clock));
+
+            if (idleLifetime is not null)
+            {
+                builder.UseSetting("Session:IdleLifetime", idleLifetime);
+            }
+        });
 
     private static async Task<TenantResponse> TenantAsync(HttpClient client, string accessToken)
     {

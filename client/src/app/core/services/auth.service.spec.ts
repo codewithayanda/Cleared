@@ -445,3 +445,78 @@ describe('AuthService between tabs', () => {
     expect(locks.requested).toEqual(['cleared-refresh', 'cleared-refresh']);
   });
 });
+
+describe('AuthService signing out quietly', () => {
+  const NO_CONTENT = { status: 204, statusText: 'No Content' };
+  let httpMock: HttpTestingController;
+  let router: Router;
+  let service: AuthService;
+
+  beforeEach(() => {
+    localStorage.clear();
+    FakeChannel.instances = [];
+    vi.stubGlobal('BroadcastChannel', FakeChannel);
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+
+    httpMock = TestBed.inject(HttpTestingController);
+    router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    service = TestBed.inject(AuthService);
+    service.login(CREDENTIALS).subscribe();
+    httpMock.expectOne(LOGIN_URL).flush({ accessToken: FIRST });
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  it('tells the server, ends the session here, and goes to sign-in', () => {
+    service.signOutQuietly();
+    httpMock.expectOne(LOGOUT_URL).flush(null, NO_CONTENT);
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(localStorage.getItem(HINT_KEY)).toBeNull();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/login');
+    expect(FakeChannel.instances[0].posted).toEqual(['signed-out']);
+  });
+
+  it('gives inactivity as the reason, here and to the other tabs', () => {
+    service.signOutQuietly('idle');
+    httpMock.expectOne(LOGOUT_URL).flush(null, NO_CONTENT);
+
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/login?reason=idle');
+    expect(FakeChannel.instances[0].posted).toEqual(['signed-out-idle']);
+  });
+
+  it('ends the session here even when the server cannot be reached', () => {
+    service.signOutQuietly('idle');
+    httpMock.expectOne(LOGOUT_URL).flush(null, { status: 503, statusText: 'Service Unavailable' });
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/login?reason=idle');
+  });
+
+  it('does not wait for ever for a server that does not answer', () => {
+    vi.useFakeTimers();
+    service.signOutQuietly('idle');
+    const request = httpMock.expectOne(LOGOUT_URL);
+
+    vi.advanceTimersByTime(5_000);
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/login?reason=idle');
+    expect(request.cancelled).toBe(true);
+  });
+
+  it('goes to sign-in with the reason when another tab signs out for inactivity', () => {
+    FakeChannel.instances[0].receive('signed-out-idle');
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/login?reason=idle');
+  });
+});

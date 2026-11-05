@@ -72,6 +72,10 @@
   @apply rounded-md bg-red-50 px-3 py-2 text-sm text-status-overdue;
 }
 
+.login-notice {
+  @apply mt-4 rounded-md bg-steel-50 px-3 py-2 text-sm text-steel-700;
+}
+
 .login-forgot {
   @apply mt-2 text-sm text-steel-500;
 }
