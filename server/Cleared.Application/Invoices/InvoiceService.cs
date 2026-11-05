@@ -38,7 +38,7 @@ public sealed class InvoiceService(
             throw new ArgumentException("The customer does not exist.", nameof(request));
         }
 
-        var invoice = Invoice.CreateDraft(Guid.NewGuid(), tenantId, request.CustomerId);
+        var invoice = Invoice.CreateDraft(Guid.NewGuid(), tenantId, request.CustomerId, clock.UtcNow);
 
         foreach (var line in request.Lines)
         {

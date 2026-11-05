@@ -18,5 +18,7 @@ public sealed class InvoiceRepository(ClearedDbContext dbContext) : IInvoiceRepo
         await dbContext.Invoices
             .Include(i => i.Lines)
             .Where(i => i.TenantId == tenantId)
+            .OrderByDescending(i => i.CreatedAt)
+            .ThenByDescending(i => i.Id)
             .ToListAsync(cancellationToken);
 }

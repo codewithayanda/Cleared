@@ -8,11 +8,12 @@ public class InvoiceTests
     private static readonly Guid _tenantId = Guid.NewGuid();
     private static readonly Guid _customerId = Guid.NewGuid();
 
+    private static readonly DateTimeOffset _createdAt = new(2026, 8, 28, 9, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly _issueDate = new(2026, 8, 28);
     private static readonly DateOnly _dueDate = new(2026, 9, 27);
     private const decimal StandardRate = 0.15m;
 
-    private static Invoice NewDraft() => Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId);
+    private static Invoice NewDraft() => Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId, _createdAt);
 
     private static void IssueAsTaxInvoice(
         Invoice invoice, string number = "INV-2026-0001", decimal vatRate = StandardRate) =>
@@ -21,13 +22,25 @@ public class InvoiceTests
     [Fact]
     public void CreateDraft_EmptyTenantId_Throws()
     {
-        Assert.Throws<ArgumentException>(() => Invoice.CreateDraft(Guid.NewGuid(), Guid.Empty, _customerId));
+        Assert.Throws<ArgumentException>(() => Invoice.CreateDraft(Guid.NewGuid(), Guid.Empty, _customerId, _createdAt));
     }
 
     [Fact]
     public void CreateDraft_EmptyCustomerId_Throws()
     {
-        Assert.Throws<ArgumentException>(() => Invoice.CreateDraft(Guid.NewGuid(), _tenantId, Guid.Empty));
+        Assert.Throws<ArgumentException>(() => Invoice.CreateDraft(Guid.NewGuid(), _tenantId, Guid.Empty, _createdAt));
+    }
+
+    [Fact]
+    public void CreateDraft_RecordsWhenItWasCreated()
+    {
+        Assert.Equal(_createdAt, NewDraft().CreatedAt);
+    }
+
+    [Fact]
+    public void CreateDraft_NoCreationTime_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId, default));
     }
 
     [Fact]

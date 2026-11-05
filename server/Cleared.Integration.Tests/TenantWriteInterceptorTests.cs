@@ -23,7 +23,7 @@ public class TenantWriteInterceptorTests(ClearedApiFactory factory)
     private static readonly Dictionary<string, Func<Guid, object>> Smuggled = new()
     {
         ["Customer"] = tenantId => Customer.Create(Guid.NewGuid(), tenantId, "Smuggled", DateTimeOffset.UtcNow),
-        ["Invoice"] = tenantId => Invoice.CreateDraft(Guid.NewGuid(), tenantId, Guid.NewGuid()),
+        ["Invoice"] = tenantId => Invoice.CreateDraft(Guid.NewGuid(), tenantId, Guid.NewGuid(), DateTimeOffset.UtcNow),
         ["CreditNote"] = tenantId => CreditNote.Create(
             Guid.NewGuid(), tenantId, Guid.NewGuid(), "CN-2026-0001", "Smuggled", TestData.Today, 0.15m,
             [new CreditNoteLineRequest(Guid.NewGuid(), "Item", 1m, Money.Zar(10m), VatTreatment.NotApplicable)]),

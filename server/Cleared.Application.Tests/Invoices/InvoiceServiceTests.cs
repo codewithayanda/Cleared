@@ -70,6 +70,20 @@ public class InvoiceServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_RecordsTheClockTimeAsWhenTheInvoiceWasCreated()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService(new LateNightClock());
+
+        var response = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.NotApplicable), CancellationToken.None);
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, response.Id, CancellationToken.None);
+        Assert.Equal(new DateTimeOffset(2026, 8, 28, 23, 30, 0, TimeSpan.Zero), stored!.CreatedAt);
+    }
+
+    [Fact]
     public async Task IssueAsync_RegisteredTenantMissingOwnAddress_ThrowsWithFieldNamed()
     {
         var tenantId = SeedTenant(VatStatus.Registered, address: null);
