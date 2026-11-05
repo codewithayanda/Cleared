@@ -458,4 +458,42 @@ public class InvoiceTests
 
         Assert.False(invoice.IsOverdue(new DateOnly(2026, 8, 15)));
     }
+
+    [Fact]
+    public void IsOverdue_PartiallyPaidAndPastDueDate_ReturnsTrue()
+    {
+        var invoice = IssuedDueOn(new DateOnly(2026, 8, 15));
+        invoice.RecordPaymentTotal(Money.Zar(40m));
+
+        Assert.True(invoice.IsOverdue(new DateOnly(2026, 8, 16)));
+    }
+
+    [Fact]
+    public void IsOverdue_PaidInFullAndPastDueDate_ReturnsFalse()
+    {
+        var invoice = IssuedDueOn(new DateOnly(2026, 8, 15));
+        invoice.RecordPaymentTotal(invoice.Total);
+
+        Assert.False(invoice.IsOverdue(new DateOnly(2026, 8, 16)));
+    }
+
+    [Fact]
+    public void IsOverdue_CancelledAndPastDueDate_ReturnsFalse()
+    {
+        var invoice = IssuedDueOn(new DateOnly(2026, 8, 15));
+        invoice.Cancel();
+
+        Assert.False(invoice.IsOverdue(new DateOnly(2026, 8, 16)));
+    }
+
+    private static Invoice IssuedDueOn(DateOnly dueDate)
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
+        invoice.Issue(
+            "INV-2026-0001", new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 1), dueDate,
+            DocumentType.TaxInvoice, StandardRate);
+
+        return invoice;
+    }
 }

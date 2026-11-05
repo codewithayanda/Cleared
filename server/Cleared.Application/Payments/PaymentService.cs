@@ -53,7 +53,7 @@ public sealed class PaymentService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return ToResponse(payment);
+        return PaymentMapper.ToResponse(payment);
     }
 
     public async Task<IReadOnlyList<PaymentResponse>?> ListAsync(
@@ -68,18 +68,8 @@ public sealed class PaymentService(
         var payments = await paymentRepository.ListByInvoiceIdAsync(tenantId, invoiceId, cancellationToken);
 
         // Most recent first, matching the audit log, so the invoice's history reads top-down.
-        return payments.OrderByDescending(p => p.RecordedAt).Select(ToResponse).ToList();
+        return payments.OrderByDescending(p => p.RecordedAt).Select(PaymentMapper.ToResponse).ToList();
     }
-
-    private static PaymentResponse ToResponse(Payment payment) => new(
-        payment.Id,
-        payment.TenantId,
-        payment.InvoiceId,
-        payment.Method.ToString(),
-        FormatMoney(payment.Amount),
-        payment.ReceivedAt,
-        payment.RecordedAt,
-        payment.Reference);
 
     private static string FormatMoney(Money money) => money.Amount.ToString("F2", CultureInfo.InvariantCulture);
 }

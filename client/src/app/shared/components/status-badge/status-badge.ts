@@ -13,16 +13,29 @@ const STATUS_STYLES: Record<InvoiceStatus, string> = {
   selector: 'app-status-badge',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <span
-      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-      [class]="styles()"
-    >
-      {{ label() }}
+    <span class="inline-flex items-center gap-1.5">
+      <span
+        class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+        [class]="styles()"
+      >
+        {{ label() }}
+      </span>
+      @if (overdue()) {
+        <span
+          class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-status-overdue"
+        >
+          Overdue
+        </span>
+      }
     </span>
   `,
 })
 export class StatusBadge {
   readonly status = input.required<InvoiceStatus>();
+
+  // An overdue invoice keeps its status (Issued or Partially Paid), so this is a second pill
+  // beside it and not a status of its own.
+  readonly overdue = input(false);
 
   protected readonly styles = computed(() => STATUS_STYLES[this.status()]);
 

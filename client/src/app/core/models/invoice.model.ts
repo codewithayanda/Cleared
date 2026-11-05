@@ -49,6 +49,10 @@ export interface Invoice {
   total: string;
   amountPaid: string;
   balanceDue: string;
+  // Worked out by the server from the due date and today's date in South Africa, and never
+  // stored. The client does not work it out from dueDate: this browser's clock and time zone
+  // can disagree with the server's.
+  isOverdue: boolean;
   lines: InvoiceLine[];
 }
 

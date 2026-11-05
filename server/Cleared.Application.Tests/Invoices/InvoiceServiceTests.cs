@@ -1,3 +1,4 @@
+using Cleared.Application.Abstractions;
 using Cleared.Application.Invoices;
 using Cleared.Application.Tests.TestDoubles;
 using Cleared.Domain.Common;
@@ -17,12 +18,13 @@ public class InvoiceServiceTests
     private readonly FakeInvoiceRepository _invoiceRepository = new();
     private readonly FakeAuditLogRepository _auditLogRepository = new();
     private readonly FakePaymentRepository _paymentRepository = new();
+    private readonly FakeInvoicePdfRenderer _pdfRenderer = new();
 
-    private InvoiceService CreateService() => new(
+    private InvoiceService CreateService(IClock? clock = null) => new(
         _invoiceRepository, new FakeInvoiceLock(_invoiceRepository), _tenantRepository,
         _customerRepository, new FakeVatRateRepository(),
-        new FakeInvoiceNumberAllocator(), _auditLogRepository, _paymentRepository, new FakeInvoicePdfRenderer(),
-        new FakeUnitOfWork(), new FakeCurrentUserContext(Guid.NewGuid()), new FakeClock(_today));
+        new FakeInvoiceNumberAllocator(), _auditLogRepository, _paymentRepository, _pdfRenderer,
+        new FakeUnitOfWork(), new FakeCurrentUserContext(Guid.NewGuid()), clock ?? new FakeClock(_today));
 
     private Guid SeedTenant(VatStatus vatStatus, string? vatNumber = "4123456789", string? address = "1 Acme Way, Johannesburg")
     {
@@ -248,6 +250,128 @@ public class InvoiceServiceTests
         Assert.Equal("0.00", invoices.Single(i => i.Id == paidInvoice.Id).BalanceDue);
         Assert.Equal("0.00", invoices.Single(i => i.Id == untouchedInvoice.Id).AmountPaid);
         Assert.Equal("230.00", invoices.Single(i => i.Id == untouchedInvoice.Id).BalanceDue);
+    }
+
+    [Fact]
+    public async Task ListAsync_IssuedInvoicePastItsDueDate_IsReportedOverdue()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var invoice = await IssueDueOnAsync(service, tenantId, customerId, _today.AddDays(-1));
+
+        var listed = (await service.ListAsync(tenantId, CancellationToken.None)).Single(i => i.Id == invoice.Id);
+        var fetched = await service.GetByIdAsync(tenantId, invoice.Id, CancellationToken.None);
+
+        Assert.True(listed.IsOverdue);
+        Assert.True(fetched!.IsOverdue);
+    }
+
+    [Fact]
+    public async Task ListAsync_InvoiceDueTodayOrLater_IsNotOverdue()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var dueToday = await IssueDueOnAsync(service, tenantId, customerId, _today);
+        var dueTomorrow = await IssueDueOnAsync(service, tenantId, customerId, _today.AddDays(1));
+
+        var listed = await service.ListAsync(tenantId, CancellationToken.None);
+
+        Assert.False(listed.Single(i => i.Id == dueToday.Id).IsOverdue);
+        Assert.False(listed.Single(i => i.Id == dueTomorrow.Id).IsOverdue);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ADraft_IsNeverOverdue()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.NotApplicable), CancellationToken.None);
+
+        Assert.False(draft.IsOverdue);
+    }
+
+    [Fact]
+    public async Task Overdue_IsJudgedByTheSouthAfricanDateAndNotTheUtcOne()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService(new LateNightClock());
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.NotApplicable), CancellationToken.None);
+
+        var issued = await service.IssueAsync(
+            tenantId,
+            draft.Id,
+            new IssueInvoiceRequest(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 28)),
+            CancellationToken.None);
+        var fetched = await service.GetByIdAsync(tenantId, draft.Id, CancellationToken.None);
+        var listed = await service.ListAsync(tenantId, CancellationToken.None);
+
+        Assert.True(issued!.IsOverdue);
+        Assert.True(fetched!.IsOverdue);
+        Assert.True(listed.Single(i => i.Id == draft.Id).IsOverdue);
+    }
+
+    [Fact]
+    public async Task GetPdfAsync_PartPaidInvoice_GivesTheBuilderThePaymentsAndTodayInSouthAfrica()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService(new LateNightClock());
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+        await service.IssueAsync(
+            tenantId, draft.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
+        _paymentRepository.Seed(
+            Payment.RecordManual(Guid.NewGuid(), tenantId, draft.Id, Money.Zar(50m), _today.AddDays(-1), _now));
+        (await _invoiceRepository.GetByIdAsync(tenantId, draft.Id, CancellationToken.None))!
+            .RecordPaymentTotal(Money.Zar(50m));
+
+        var pdf = await service.GetPdfAsync(tenantId, draft.Id, CancellationToken.None);
+
+        Assert.NotNull(pdf);
+        var content = Assert.IsType<InvoiceDocument>(_pdfRenderer.Last);
+        var payment = Assert.Single(content.Payments);
+        Assert.Equal("Balance due", content.TotalLabel);
+        Assert.Equal("65.00", content.TotalAmount);
+        Assert.Equal("Payments received as at 29 Aug 2026", content.PaymentsHeading);
+        Assert.Equal("27 Aug 2026", payment.Date);
+        Assert.Equal("50.00", payment.Amount);
+    }
+
+    [Fact]
+    public async Task GetPdfAsync_UnknownInvoice_ReturnsNullAndDrawsNothing()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var service = CreateService();
+
+        var pdf = await service.GetPdfAsync(tenantId, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.Null(pdf);
+        Assert.Null(_pdfRenderer.Last);
+    }
+
+    private static async Task<InvoiceResponse> IssueDueOnAsync(
+        InvoiceService service, Guid tenantId, Guid customerId, DateOnly dueDate)
+    {
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.NotApplicable), CancellationToken.None);
+
+        return (await service.IssueAsync(
+            tenantId, draft.Id, new IssueInvoiceRequest(dueDate.AddDays(-30), dueDate), CancellationToken.None))!;
+    }
+
+    // Half past eleven at night in UTC is already tomorrow in South Africa.
+    private sealed class LateNightClock : IClock
+    {
+        public DateTimeOffset UtcNow { get; } = new(2026, 8, 28, 23, 30, 0, TimeSpan.Zero);
+
+        public DateOnly Today { get; } = new(2026, 8, 29);
     }
 
     [Fact]

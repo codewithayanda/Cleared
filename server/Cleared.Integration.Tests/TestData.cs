@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Cleared.Application.Customers;
 using Cleared.Application.Invoices;
+using Cleared.Application.Payments;
 
 namespace Cleared.Integration.Tests;
 
@@ -32,10 +33,16 @@ public static class TestData
         client.PostJsonAsync<CustomerResponse>(
             "api/v1/customers", new CreateCustomerRequest(name, null, "ap@example.test", "1 Main Road, Cape Town"));
 
-    public static async Task<InvoiceResponse> CreateIssuedInvoiceAsync(this HttpClient client, Guid customerId)
+    public static async Task<InvoiceResponse> CreateIssuedInvoiceAsync(
+        this HttpClient client, Guid customerId, IssueInvoiceRequest? issue = null)
     {
         var draft = await client.PostJsonAsync<InvoiceResponse>("api/v1/invoices", NewInvoice(customerId));
 
-        return await client.PostJsonAsync<InvoiceResponse>($"api/v1/invoices/{draft.Id}/issue", IssueToday());
+        return await client.PostJsonAsync<InvoiceResponse>($"api/v1/invoices/{draft.Id}/issue", issue ?? IssueToday());
     }
+
+    public static Task<PaymentResponse> RecordPaymentAsync(
+        this HttpClient client, Guid invoiceId, string amount, DateOnly? receivedAt = null) =>
+        client.PostJsonAsync<PaymentResponse>(
+            $"api/v1/invoices/{invoiceId}/payments", new RecordPaymentRequest(amount, receivedAt ?? Today, null));
 }

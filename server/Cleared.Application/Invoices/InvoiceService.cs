@@ -1,10 +1,12 @@
 using Cleared.Application.Abstractions;
 using Cleared.Application.Common;
 using Cleared.Application.Customers;
+using Cleared.Application.Payments;
 using Cleared.Application.Tenants;
 using Cleared.Domain.Auditing;
 using Cleared.Domain.Common;
 using Cleared.Domain.Invoicing;
+using Cleared.Domain.Payments;
 using Cleared.Domain.Tenancy;
 
 namespace Cleared.Application.Invoices;
@@ -55,7 +57,7 @@ public sealed class InvoiceService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // A brand-new draft can't have a payment against it yet.
-        return InvoiceMapper.ToResponse(invoice, Money.Zero);
+        return InvoiceMapper.ToResponse(invoice, Money.Zero, clock.Today);
     }
 
     public async Task<InvoiceResponse?> GetByIdAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
@@ -68,7 +70,7 @@ public sealed class InvoiceService(
 
         var amountPaid = await GetAmountPaidAsync(tenantId, invoiceId, cancellationToken);
 
-        return InvoiceMapper.ToResponse(invoice, amountPaid);
+        return InvoiceMapper.ToResponse(invoice, amountPaid, clock.Today);
     }
 
     public async Task<IReadOnlyList<InvoiceResponse>> ListAsync(Guid tenantId, CancellationToken cancellationToken)
@@ -84,9 +86,11 @@ public sealed class InvoiceService(
             .GroupBy(p => p.InvoiceId)
             .ToDictionary(g => g.Key, g => g.Aggregate(Money.Zero, (sum, p) => sum.Add(p.Amount)));
 
+        var today = clock.Today;
+
         return invoices
             .Select(invoice => InvoiceMapper.ToResponse(
-                invoice, amountPaidByInvoiceId.GetValueOrDefault(invoice.Id, Money.Zero)))
+                invoice, amountPaidByInvoiceId.GetValueOrDefault(invoice.Id, Money.Zero), today))
             .ToList();
     }
 
@@ -140,7 +144,7 @@ public sealed class InvoiceService(
 
         // Issuing is the transition out of Draft, and a payment requires an issued invoice,
         // so nothing can have paid against this one yet.
-        return InvoiceMapper.ToResponse(invoice, Money.Zero);
+        return InvoiceMapper.ToResponse(invoice, Money.Zero, clock.Today);
     }
 
     public async Task<byte[]?> GetPdfAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
@@ -157,19 +161,22 @@ public sealed class InvoiceService(
         var customer = await customerRepository.GetByIdAsync(tenantId, invoice.CustomerId, cancellationToken)
             ?? throw new InvalidOperationException("The customer on this invoice no longer exists.");
 
-        var amountPaid = await GetAmountPaidAsync(tenantId, invoiceId, cancellationToken);
-
-        return pdfRenderer.Render(
-            InvoiceMapper.ToResponse(invoice, amountPaid), CustomerMapper.ToResponse(customer),
-            TenantMapper.ToResponse(tenant));
-    }
-
-    private async Task<Money> GetAmountPaidAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
-    {
         var payments = await paymentRepository.ListByInvoiceIdAsync(tenantId, invoiceId, cancellationToken);
+        var today = clock.Today;
 
-        return payments.Aggregate(Money.Zero, (sum, payment) => sum.Add(payment.Amount));
+        return pdfRenderer.Render(InvoiceDocumentBuilder.Build(
+            InvoiceMapper.ToResponse(invoice, SumOf(payments), today),
+            CustomerMapper.ToResponse(customer),
+            TenantMapper.ToResponse(tenant),
+            [.. payments.Select(PaymentMapper.ToResponse)],
+            today));
     }
+
+    private async Task<Money> GetAmountPaidAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken) =>
+        SumOf(await paymentRepository.ListByInvoiceIdAsync(tenantId, invoiceId, cancellationToken));
+
+    private static Money SumOf(IEnumerable<Payment> payments) =>
+        payments.Aggregate(Money.Zero, (sum, payment) => sum.Add(payment.Amount));
 
     // VAT Act s20(4): a tax invoice must identify both supplier and recipient by name and
     // address, and at or above R5,000 must carry the recipient's VAT number. The supplier's

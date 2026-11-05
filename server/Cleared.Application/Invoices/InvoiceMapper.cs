@@ -9,7 +9,7 @@ internal static class InvoiceMapper
     // amountPaid comes from the caller (InvoiceService), which can see every Payment;
     // Invoice holds no reference to them. A draft, or an invoice just issued in this call,
     // has no payments yet, so those paths pass Money.Zero rather than querying.
-    public static InvoiceResponse ToResponse(Invoice invoice, Money amountPaid) => new(
+    public static InvoiceResponse ToResponse(Invoice invoice, Money amountPaid, DateOnly today) => new(
         invoice.Id,
         invoice.TenantId,
         invoice.CustomerId,
@@ -25,6 +25,7 @@ internal static class InvoiceMapper
         FormatMoney(invoice.Total),
         FormatMoney(amountPaid),
         FormatMoney(invoice.Total.Subtract(amountPaid)),
+        invoice.IsOverdue(today),
         invoice.Lines
             .Select(l => new InvoiceLineResponse(
                 l.Id,
