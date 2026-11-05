@@ -8,6 +8,7 @@ public sealed class Invoice : Entity
 
     public Guid TenantId { get; }
     public Guid CustomerId { get; }
+    public DateTimeOffset CreatedAt { get; private set; }
     public InvoiceStatus Status { get; private set; }
     public string? Number { get; private set; }
     public DocumentType? DocumentType { get; private set; }
@@ -52,7 +53,7 @@ public sealed class Invoice : Entity
         Status = InvoiceStatus.Draft;
     }
 
-    public static Invoice CreateDraft(Guid id, Guid tenantId, Guid customerId)
+    public static Invoice CreateDraft(Guid id, Guid tenantId, Guid customerId, DateTimeOffset createdAt)
     {
         if (tenantId == Guid.Empty)
         {
@@ -64,7 +65,12 @@ public sealed class Invoice : Entity
             throw new ArgumentException("An invoice must have a customer.", nameof(customerId));
         }
 
-        return new Invoice(id, tenantId, customerId);
+        if (createdAt == default)
+        {
+            throw new ArgumentException("An invoice must record when it was created.", nameof(createdAt));
+        }
+
+        return new Invoice(id, tenantId, customerId) { CreatedAt = createdAt };
     }
 
     public void AddLine(Guid lineId, string description, decimal quantity, Money unitPrice, VatTreatment vatTreatment)

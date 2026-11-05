@@ -11,6 +11,7 @@ public class PaymentServiceTests
     private static readonly Guid _tenantId = Guid.NewGuid();
     private static readonly Guid _customerId = Guid.NewGuid();
     private static readonly Guid _userId = Guid.NewGuid();
+    private static readonly DateTimeOffset _createdAt = new(2026, 9, 1, 9, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly _issueDate = new(2026, 9, 1);
     private static readonly DateOnly _receivedAt = new(2026, 9, 10);
     private const decimal StandardRate = 0.15m;
@@ -26,7 +27,7 @@ public class PaymentServiceTests
 
     private Invoice SeedIssuedInvoice(decimal unitPrice = 1000m)
     {
-        var invoice = Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId);
+        var invoice = Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId, _createdAt);
         invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(unitPrice), VatTreatment.Standard);
         invoice.Issue("INV-2026-0001", _issueDate, _issueDate, _issueDate.AddDays(30), DocumentType.TaxInvoice, StandardRate);
         _invoiceRepository.Seed(invoice);
@@ -47,7 +48,7 @@ public class PaymentServiceTests
     [Fact]
     public async Task RecordAsync_DraftInvoice_Throws()
     {
-        var invoice = Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId);
+        var invoice = Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId, _createdAt);
         invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
         _invoiceRepository.Seed(invoice);
         var service = CreateService();

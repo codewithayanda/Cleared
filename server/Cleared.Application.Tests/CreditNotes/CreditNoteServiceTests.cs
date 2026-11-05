@@ -9,6 +9,7 @@ public class CreditNoteServiceTests
 {
     private static readonly Guid _tenantId = Guid.NewGuid();
     private static readonly Guid _customerId = Guid.NewGuid();
+    private static readonly DateTimeOffset _createdAt = new(2026, 8, 28, 9, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly _issueDate = new(2026, 8, 28);
     private static readonly DateOnly _today = new(2026, 9, 1);
     private const decimal StandardRate = 0.15m;
@@ -25,7 +26,7 @@ public class CreditNoteServiceTests
 
     private Invoice SeedIssuedInvoice(params (decimal Quantity, decimal UnitPrice)[] lines)
     {
-        var invoice = Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId);
+        var invoice = Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId, _createdAt);
         var lineIds = new List<Guid>();
 
         foreach (var (quantity, unitPrice) in lines)
@@ -68,7 +69,7 @@ public class CreditNoteServiceTests
     [Fact]
     public async Task CreateAsync_DraftInvoice_Throws()
     {
-        var draft = Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId);
+        var draft = Invoice.CreateDraft(Guid.NewGuid(), _tenantId, _customerId, _createdAt);
         draft.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
         _invoiceRepository.Seed(draft);
         var service = CreateService();
