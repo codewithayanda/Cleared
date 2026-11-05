@@ -185,7 +185,15 @@ internal sealed class FakeEmailVerification(bool confirmed) : IEmailVerification
     public Task<bool> IsVerifiedAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(confirmed);
 }
 
+// Keeps the last document it was given, so a test can read what the service decided the PDF says.
 internal sealed class FakeInvoicePdfRenderer : IInvoicePdfRenderer
 {
-    public byte[] Render(InvoiceResponse invoice, CustomerResponse customer, TenantResponse tenant) => [1, 2, 3];
+    public InvoiceDocument? Last { get; private set; }
+
+    public byte[] Render(InvoiceDocument document)
+    {
+        Last = document;
+
+        return [1, 2, 3];
+    }
 }

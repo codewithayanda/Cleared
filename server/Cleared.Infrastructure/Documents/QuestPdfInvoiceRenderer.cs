@@ -1,7 +1,5 @@
 using Cleared.Application.Abstractions;
-using Cleared.Application.Customers;
 using Cleared.Application.Invoices;
-using Cleared.Application.Tenants;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -11,6 +9,7 @@ namespace Cleared.Infrastructure.Documents;
 // QuestPDF Community edition, free under $1M USD annual revenue; the license is set once at
 // startup in Program.cs. Colors mirror the steel/gold tokens in client/src/styles.css's
 // @theme block, kept in sync by hand: this is the other place a customer sees the branding.
+// It only draws. What the page says is decided in InvoiceDocumentBuilder.
 public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
 {
     private const string SteelDark = "#1a1f26";
@@ -20,11 +19,14 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
     private const string SteelBand = "#e4e7ec";
     private const string SteelPale = "#f6f7f9";
     private const string Gold = "#a8791a";
+    private const string Green = "#2f7d4f";
+    private const string Red = "#b3413a";
     private const string White = "#ffffff";
 
-    public byte[] Render(InvoiceResponse invoice, CustomerResponse customer, TenantResponse tenant)
+    public byte[] Render(InvoiceDocument content)
     {
-        var title = invoice.DocumentType == "TaxInvoice" ? "TAX INVOICE" : "INVOICE";
+        var tenant = content.Tenant;
+        var customer = content.Customer;
 
         var document = Document.Create(container =>
         {
@@ -57,10 +59,17 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
 
                     row.ConstantItem(170).Column(heading =>
                     {
-                        heading.Item().AlignRight().Text(title).FontSize(20).Bold().FontColor(Gold);
-                        if (invoice.Number is { } number)
+                        heading.Item().AlignRight().Text(content.Title).FontSize(20).Bold().FontColor(Gold);
+                        if (content.Number is { } number)
                         {
                             heading.Item().PaddingTop(8).AlignRight().Text(number).FontSize(12).Bold().FontColor(White);
+                        }
+
+                        if (content.Mark is { } mark)
+                        {
+                            heading.Item().PaddingTop(8).AlignRight().Background(MarkColor(mark))
+                                .PaddingHorizontal(10).PaddingVertical(3)
+                                .Text(mark).FontSize(11).Bold().FontColor(White);
                         }
                     });
                 });
@@ -88,19 +97,19 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
 
                         row.ConstantItem(180).Column(details =>
                         {
-                            if (invoice.IssueDate is { } issueDate)
+                            if (content.IssueDate is { } issueDate)
                             {
-                                MetaRow(details, "Issue date", issueDate.ToString());
+                                MetaRow(details, "Issue date", issueDate);
                             }
 
-                            if (invoice.DueDate is { } dueDate)
+                            if (content.DueDate is { } dueDate)
                             {
-                                MetaRow(details, "Due date", dueDate.ToString());
+                                MetaRow(details, "Due date", dueDate);
                             }
 
-                            if (invoice.VatRateApplied is { } vatRate)
+                            if (content.VatRate is { } vatRate)
                             {
-                                MetaRow(details, "VAT rate", $"{decimal.Parse(vatRate) * 100:F0}%");
+                                MetaRow(details, "VAT rate", vatRate);
                             }
                         });
                     });
@@ -112,8 +121,13 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
                             columns.RelativeColumn(4);
                             columns.RelativeColumn(1);
                             columns.RelativeColumn(2);
-                            columns.RelativeColumn(2);
-                            columns.RelativeColumn(2);
+
+                            if (content.ShowVat)
+                            {
+                                columns.RelativeColumn(2);
+                                columns.RelativeColumn(2);
+                            }
+
                             columns.RelativeColumn(2);
                         });
 
@@ -122,50 +136,79 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
                             HeaderCell(header, "Description", alignRight: false);
                             HeaderCell(header, "Qty");
                             HeaderCell(header, "Unit price");
-                            HeaderCell(header, "VAT");
-                            HeaderCell(header, "VAT amount");
+
+                            if (content.ShowVat)
+                            {
+                                HeaderCell(header, "VAT");
+                                HeaderCell(header, "VAT amount");
+                            }
+
                             HeaderCell(header, "Line total");
                         });
 
                         var index = 0;
-                        foreach (var line in invoice.Lines)
+                        foreach (var line in content.Lines)
                         {
                             var background = index % 2 == 0 ? White : SteelPale;
                             index++;
 
                             BodyCell(table, background, line.Description, alignRight: false);
-                            BodyCell(table, background, line.Quantity.ToString("0.####"));
+                            BodyCell(table, background, line.Quantity);
                             BodyCell(table, background, $"R {line.UnitPrice}");
-                            BodyCell(table, background, line.VatTreatment);
-                            BodyCell(table, background, $"R {line.LineVat}");
+
+                            if (content.ShowVat)
+                            {
+                                BodyCell(table, background, line.VatTreatment);
+                                BodyCell(table, background, $"R {line.LineVat}");
+                            }
+
                             BodyCell(table, background, $"R {line.LineTotal}", bold: true);
                         }
                     });
 
                     column.Item().AlignRight().Width(220).Column(totals =>
                     {
-                        totals.Item().Row(r =>
+                        TotalsRow(totals, "Subtotal", $"R {content.Subtotal}", first: true);
+
+                        if (content.ShowVat)
                         {
-                            r.RelativeItem().Text("Subtotal").FontColor(SteelMuted);
-                            r.RelativeItem().AlignRight().Text($"R {invoice.Subtotal}");
-                        });
-                        totals.Item().PaddingTop(4).Row(r =>
+                            TotalsRow(totals, "VAT", $"R {content.VatTotal}");
+                        }
+
+                        if (content.InvoiceTotal is { } invoiceTotal)
                         {
-                            r.RelativeItem().Text("VAT").FontColor(SteelMuted);
-                            r.RelativeItem().AlignRight().Text($"R {invoice.VatTotal}");
-                        });
+                            TotalsRow(totals, "Invoice total", $"R {invoiceTotal}", bold: true);
+                        }
+
+                        if (content.PaymentsHeading is { } paymentsHeading)
+                        {
+                            totals.Item().PaddingTop(10).Text(paymentsHeading).FontSize(8).Bold().FontColor(SteelMuted);
+
+                            foreach (var payment in content.Payments)
+                            {
+                                totals.Item().PaddingTop(3).Row(r =>
+                                {
+                                    r.RelativeItem().Text(payment.Date);
+                                    r.RelativeItem().AlignRight().Text($"R {payment.Amount}");
+                                });
+                            }
+                        }
+
                         totals.Item().PaddingTop(10).Background(SteelDark).Padding(10).Row(r =>
                         {
-                            r.RelativeItem().Text("Total due").FontColor(White).Bold();
-                            r.RelativeItem().AlignRight().Text($"R {invoice.Total}").FontSize(13).Bold().FontColor(White);
+                            r.RelativeItem().Text(content.TotalLabel).FontColor(White).Bold();
+
+                            if (content.TotalAmount is { } totalAmount)
+                            {
+                                r.RelativeItem().AlignRight().Text($"R {totalAmount}").FontSize(13).Bold().FontColor(White);
+                            }
                         });
                     });
 
                     // Not required to issue an invoice (see Tenant.BankName), but without it
                     // the page shows a total with no way to pay it by EFT, so it gets its
                     // own callout rather than another plain text block.
-                    if (tenant.BankName is not null || tenant.BankAccountNumber is not null
-                        || tenant.BankBranchCode is not null)
+                    if (content.ShowBanking)
                     {
                         column.Item().Background(SteelPale).BorderLeft(3).BorderColor(Gold).Padding(14)
                             .Column(banking =>
@@ -187,7 +230,7 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
                                     banking.Item().Text($"Branch code: {branchCode}");
                                 }
 
-                                if (invoice.Number is { } reference)
+                                if (content.Number is { } reference)
                                 {
                                     banking.Item().PaddingTop(4).Text(text =>
                                     {
@@ -218,15 +261,29 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
         // fetched byte array carries no filename of its own, so this is what browsers fall
         // back to when the Owner saves the file.
         return document
-            .WithMetadata(new DocumentMetadata { Title = invoice.Number ?? title })
+            .WithMetadata(new DocumentMetadata { Title = content.Number ?? content.Title })
             .GeneratePdf();
     }
+
+    private static string MarkColor(string mark) => mark == "PAID" ? Green : Red;
 
     private static void MetaRow(ColumnDescriptor details, string label, string value) =>
         details.Item().Row(r =>
         {
             r.RelativeItem().Text(label).FontColor(SteelMuted);
             r.RelativeItem().AlignRight().Text(value).Bold();
+        });
+
+    private static void TotalsRow(
+        ColumnDescriptor totals, string label, string value, bool first = false, bool bold = false) =>
+        totals.Item().PaddingTop(first ? 0 : 4).Row(r =>
+        {
+            r.RelativeItem().Text(label).FontColor(SteelMuted);
+            var amount = r.RelativeItem().AlignRight().Text(value);
+            if (bold)
+            {
+                amount.Bold();
+            }
         });
 
     private static void HeaderCell(TableCellDescriptor header, string text, bool alignRight = true)

@@ -28,4 +28,6 @@ public sealed record InvoiceResponse(
     string Total,
     string AmountPaid,
     string BalanceDue,
+    // Worked out from the due date and today's date in South Africa, and never stored.
+    bool IsOverdue,
     IReadOnlyList<InvoiceLineResponse> Lines);

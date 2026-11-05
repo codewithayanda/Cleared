@@ -416,6 +416,28 @@ public class PasswordResetTests(ClearedApiFactory factory)
         Assert.Contains(named, StartupFailure.Messages(failure), StringComparison.Ordinal);
     }
 
+    // Anyone holding a link could use a refusal as a way to test guesses at the current password, without
+    // changing anything and without any email reaching the owner. So the answer never depends on it.
+    [Fact]
+    public async Task A_reset_answers_the_same_whether_or_not_the_new_password_is_the_one_the_account_has()
+    {
+        using var client = factory.CreateAnonymousClient();
+        var holder = await SessionTestSupport.RegisterAsync(client);
+        var other = await SessionTestSupport.RegisterAsync(client);
+        var holderLink = await LinkForAsync(client, holder.Email);
+        var otherLink = await LinkForAsync(client, other.Email);
+
+        using var sameAsCurrent = await ResetAsync(client, holderLink, holder.Password);
+        using var different = await ResetAsync(client, otherLink, NewPassword);
+        var holderEmails = await factory.SentToAsync(holder.Email);
+
+        Assert.Equal(HttpStatusCode.NoContent, sameAsCurrent.StatusCode);
+        Assert.Equal(different.StatusCode, sameAsCurrent.StatusCode);
+        Assert.Equal(await different.Content.ReadAsStringAsync(), await sameAsCurrent.Content.ReadAsStringAsync());
+        Assert.Equal("Your Cleared password was changed", holderEmails[^1].Subject);
+        Assert.Equal(HttpStatusCode.OK, await SignInAsync(client, holder.Email, holder.Password));
+    }
+
     private static Task<HttpResponseMessage> ForgotAsync(HttpClient client, string email) =>
         client.PostAsJsonAsync("api/v1/auth/forgot-password", new ForgotPasswordRequest(email), ApiJson.Options);
 
