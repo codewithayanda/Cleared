@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { Subject } from 'rxjs';
 import { AuthResponse } from '@core/models/auth.model';
 import { AuthService } from '@core/services/auth.service';
+import { IDLE_TIMINGS } from '@core/services/idle.service';
 import { Login } from './login';
 
 const refused = (retryAfter?: string) =>
@@ -31,6 +32,10 @@ describe('Login', () => {
             },
           },
         },
+        {
+          provide: IDLE_TIMINGS,
+          useValue: { warnAfterMs: 15 * 60_000, signOutAfterMs: 20 * 60_000, heartbeatMs: 600_000 },
+        },
       ],
     });
   }
@@ -46,8 +51,12 @@ describe('Login', () => {
     localStorage.clear();
   });
 
-  function open() {
+  function open(reason?: string) {
     const fixture = TestBed.createComponent(Login);
+    if (reason !== undefined) {
+      fixture.componentRef.setInput('reason', reason);
+    }
+
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
 
@@ -75,6 +84,24 @@ describe('Login', () => {
       button: () => element.querySelector<HTMLButtonElement>('button[type="submit"]')!,
     };
   }
+
+  it('says why someone was signed out when the address says it was for inactivity', () => {
+    const { element } = open('idle');
+
+    expect(element.querySelector('.login-notice')?.textContent?.trim()).toBe(
+      'You were signed out after 20 minutes of inactivity.',
+    );
+  });
+
+  it.each([undefined, 'anything else'])(
+    'says nothing about inactivity when the reason is %s',
+    (reason) => {
+      const { element } = open(reason);
+
+      expect(element.querySelector('.login-notice')).toBeNull();
+      expect(element.textContent).not.toContain('inactivity');
+    },
+  );
 
   it('tells people up front how the lockout works', () => {
     const { element } = open();

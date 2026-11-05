@@ -4,12 +4,14 @@ import {
   DestroyRef,
   computed,
   inject,
+  input,
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '@core/services/auth.service';
+import { IDLE_TIMINGS } from '@core/services/idle.service';
 import { rateLimitMessage, retryAfterSeconds } from '@core/utils/rate-limit-message';
 
 // Mirrors the sign-in throttle in the API: 5 wrong passwords lock an email for 15 minutes.
@@ -29,6 +31,10 @@ export class Login {
   private readonly router = inject(Router);
   private ticker: ReturnType<typeof setInterval> | null = null;
 
+  // Bound from the address, where the app puts it when it signs someone out for inactivity.
+  readonly reason = input<string>();
+
+  protected readonly idleMinutes = inject(IDLE_TIMINGS).signOutAfterMs / 60_000;
   protected readonly lockoutTries = LOCKOUT_TRIES;
   protected readonly lockoutMinutes = LOCKOUT_MINUTES;
 

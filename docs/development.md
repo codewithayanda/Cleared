@@ -85,9 +85,12 @@ deployed environments read from AWS Secrets Manager.
 `Jwt:SigningKey` must be at least 32 bytes or the API refuses to start. Make one with
 `openssl rand -base64 48`.
 
-A session ends after 7 days without a refresh, and after 30 days whatever its activity. Override them
-with `Session:IdleLifetime` and `Session:AbsoluteLifetime` (for example `7.00:00:00`). The API refuses
-to start if the absolute limit is shorter than the idle one.
+A session ends after 30 minutes without a refresh, and after 30 days whatever its activity. Override them
+with `Session:IdleLifetime` and `Session:AbsoluteLifetime` (for example `08:00:00`). The API refuses
+to start if the absolute limit is shorter than the idle one. The web app signs a person out after 20
+minutes without activity and renews an active person's session about every 10, so keep the idle lifetime
+above 30 minutes. Those three times are `idle` in `client/src/environments/environment.ts`. While you develop,
+set them long there and `Session:IdleLifetime` long in your user secrets, and do not commit that.
 
 Callers may make a limited number of requests in a window. Sign-in and registration are limited per
 address (10 a minute and 10 an hour), refreshing and signing out share 30 a minute per address, and
@@ -157,6 +160,7 @@ by you into `dotnet user-secrets`, never into a file in the repo.
 - Tax dates are `DateOnly` in SAST. Instants are UTC.
 - Every POST that creates or moves money takes an `Idempotency-Key` header and runs through `IdempotentExecutor`, so a repeated request returns the first answer instead of doing the work twice. `IdempotencyGuardTests` fails a write endpoint that skips it.
 - A session is a 15-minute access token that the client keeps in memory, plus a refresh token in an HttpOnly, `SameSite=Strict` cookie (`cleared_refresh`, path `/api/v1/auth`). Every refresh swaps the cookie for a new one, and presenting an old one ends the whole session, so a client must never send the same cookie from two places at once. The auth endpoints refuse cross-site requests, so the client and the API must be served from the same site. In development the Angular proxy does that.
+- The client signs a person out after 20 minutes without activity (pointer, key, scroll or touch) in any tab, and warns them from 15 minutes with a dialog that counts down. `IdleService` goes by a time kept in `localStorage` (`cleared.last-activity`) and not by counting ticks, so the tabs agree and a laptop that slept signs out the moment it wakes. While someone is active it renews the session about every 10 minutes, which is what stops the server's 30-minute idle lifetime from ending a session that is in use. The server end of an inactivity sign-out is best effort, because nobody is there to read an error, but the browser end is certain.
 - The client restores its session before the first route runs, shares one refresh between callers and between tabs (Web Locks), and keeps a flag, never a token, in `localStorage` so first-time visitors skip the startup call. `session-flow.spec.ts` proves the pieces work together.
 - Sign-in is throttled on the server, per email and whether or not the email has an account, so the answer never shows which emails have one (`SignInThrottle`, table `sign_in_throttles`, which stores only a hash of the email). The sign-in page keeps nothing in the browser. It counts down whatever `Retry-After` the server sends.
 - Email goes through `IEmailQueue`: a bounded queue that a background dispatcher empties, one message at a time, after the response has gone, into `IEmailSender`. The integration tests replace the sender with `CapturingEmailSender` (`factory.Emails`), so none sends a real email, and they wait for the queue to empty before reading what was sent.
@@ -168,3 +172,4 @@ by you into `dotnet user-secrets`, never into a file in the repo.
 - A reset never says whether the new password is the one the account has now, or one it had before. Anyone holding a link could use that answer to test guesses at the current password without changing anything, and without any email reaching the owner, so the answer must not depend on it. Rules about a password's history belong in changing it while signed in, where the person already knows the current password. `PasswordResetTests` proves a reset answers the same either way.
 - Overdue is worked out each time an invoice is read and never stored: `Invoice.IsOverdue` against today's date in South Africa (`IClock.Today`). It is `InvoiceResponse.IsOverdue`, and the client shows what the server says and never works it out from the due date, because the browser's clock and time zone can disagree with the server's. The status stays Issued or Partially Paid. `InvoiceOverdueTests` reads it every way an invoice is read.
 - What an invoice PDF says is decided in `InvoiceDocumentBuilder` (Application), which turns an invoice, its payments and today's date into an `InvoiceDocument` of ready-written text, so `QuestPdfInvoiceRenderer` only draws it. A part-paid invoice shows its payments and a "Balance due", a paid one says "Paid in full" and hides the banking details, and the VAT columns show only on a tax invoice. Dates and numbers are written in the invariant culture ("9 Oct 2026"), so a PDF reads the same on any server. `InvoicePdfTests` reads the words back out of the PDF the API sends, with PdfPig, a package used by the tests only.
+- A list is ordered in the database and never left to however the rows happen to be stored. Invoices come newest first by `CreatedAt`, then by `Id` to settle a tie (`InvoiceRepository.ListAsync`, proved by `InvoiceOrderTests`).

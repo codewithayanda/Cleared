@@ -1,0 +1,42 @@
+@if (idle.warning()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-steel-950/60 p-4">
+    <div
+      #dialog
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="idle-title"
+      aria-describedby="idle-description"
+      class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+    >
+      <h2 id="idle-title" class="text-lg font-medium text-steel-900">Are you still there?</h2>
+      <p id="idle-description" class="mt-2 text-sm text-steel-600">
+        Nothing has happened for {{ warnMinutes }} minutes. For your security you will be signed out
+        in {{ spoken() }} unless you stay signed in.
+      </p>
+      <p
+        aria-hidden="true"
+        class="mt-4 text-center text-3xl font-medium tabular-nums text-steel-900"
+      >
+        {{ countdown() }}
+      </p>
+      <p class="sr-only" role="status">Signing out in {{ spoken() }}.</p>
+      <div class="mt-6 flex justify-end gap-3">
+        <button
+          #stayAction
+          type="button"
+          (click)="stay()"
+          class="rounded-md bg-gold-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gold-700"
+        >
+          Stay signed in
+        </button>
+        <button
+          type="button"
+          (click)="signOut()"
+          class="rounded-md border border-steel-300 bg-white px-4 py-2 text-sm font-medium text-steel-700 shadow-sm transition-colors hover:bg-steel-50"
+        >
+          Sign out now
+        </button>
+      </div>
+    </div>
+  </div>
+}
