@@ -9,6 +9,9 @@ public class InvoiceTests
     private static readonly Guid _customerId = Guid.NewGuid();
 
     private static readonly DateTimeOffset _createdAt = new(2026, 8, 28, 9, 0, 0, TimeSpan.Zero);
+    private static readonly CustomerDetails _customerDetails = new("Beta Co", "1 Main Road, Cape Town", "4987654321");
+    private static readonly SupplierDetails _supplierDetails =
+        new("Acme Ltd", "Acme Trading", "1 Acme Way, Johannesburg", "4123456789");
     private static readonly DateOnly _issueDate = new(2026, 8, 28);
     private static readonly DateOnly _dueDate = new(2026, 9, 27);
     private const decimal StandardRate = 0.15m;
@@ -17,7 +20,8 @@ public class InvoiceTests
 
     private static void IssueAsTaxInvoice(
         Invoice invoice, string number = "INV-2026-0001", decimal vatRate = StandardRate) =>
-        invoice.Issue(number, _issueDate, _issueDate, _dueDate, DocumentType.TaxInvoice, vatRate);
+        invoice.Issue(
+            number, _issueDate, _issueDate, _dueDate, DocumentType.TaxInvoice, vatRate, _customerDetails, _supplierDetails);
 
     [Fact]
     public void CreateDraft_EmptyTenantId_Throws()
@@ -147,7 +151,8 @@ public class InvoiceTests
         var invoice = NewDraft();
         invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
 
-        invoice.Issue("INV-2026-0001", _issueDate, _issueDate, _dueDate, DocumentType.TaxInvoice, StandardRate);
+        invoice.Issue(
+            "INV-2026-0001", _issueDate, _issueDate, _dueDate, DocumentType.TaxInvoice, StandardRate, _customerDetails, _supplierDetails);
 
         Assert.Equal(InvoiceStatus.Issued, invoice.Status);
         Assert.Equal("INV-2026-0001", invoice.Number);
@@ -165,7 +170,8 @@ public class InvoiceTests
         invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
         var supplyDate = new DateOnly(2026, 3, 15);
 
-        invoice.Issue("INV-2026-0001", _issueDate, supplyDate, _dueDate, DocumentType.TaxInvoice, StandardRate);
+        invoice.Issue(
+            "INV-2026-0001", _issueDate, supplyDate, _dueDate, DocumentType.TaxInvoice, StandardRate, _customerDetails, _supplierDetails);
 
         Assert.Equal(_issueDate, invoice.IssueDate);
         Assert.Equal(supplyDate, invoice.SupplyDate);
@@ -206,7 +212,8 @@ public class InvoiceTests
 
         Assert.Throws<ArgumentException>(() =>
             invoice.Issue(
-                "INV-2026-0001", _issueDate, _issueDate, new DateOnly(2026, 8, 1), DocumentType.TaxInvoice, StandardRate));
+                "INV-2026-0001", _issueDate, _issueDate, new DateOnly(2026, 8, 1), DocumentType.TaxInvoice, StandardRate,
+                _customerDetails, _supplierDetails));
     }
 
     // --- VAT computation, by treatment (D12) ---
@@ -257,7 +264,8 @@ public class InvoiceTests
         var invoice = NewDraft();
         invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(1000m), VatTreatment.NotApplicable);
 
-        invoice.Issue("INV-2026-0001", _issueDate, _issueDate, _dueDate, DocumentType.Invoice, StandardRate);
+        invoice.Issue(
+            "INV-2026-0001", _issueDate, _issueDate, _dueDate, DocumentType.Invoice, StandardRate, _customerDetails, _supplierDetails);
 
         Assert.Equal(Money.Zero, invoice.VatTotal);
         Assert.Equal(Money.Zar(1000m), invoice.Total);
@@ -441,6 +449,173 @@ public class InvoiceTests
     // --- Derived overdue ---
 
     [Fact]
+    public void Revise_ReplacesTheCustomerAndEveryLine()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Old", 1m, Money.Zar(100m), VatTreatment.Standard);
+        var newCustomerId = Guid.NewGuid();
+
+        invoice.Revise(
+            newCustomerId,
+            [
+                new DraftLine(Guid.NewGuid(), "New A", 2m, Money.Zar(50m), VatTreatment.Standard),
+                new DraftLine(Guid.NewGuid(), "New B", 1m, Money.Zar(25m), VatTreatment.ZeroRated),
+            ]);
+
+        Assert.Equal(newCustomerId, invoice.CustomerId);
+        Assert.Equal(["New A", "New B"], invoice.Lines.Select(line => line.Description));
+        Assert.Equal([0, 1], invoice.Lines.Select(line => line.Position));
+        Assert.Equal(Money.Zar(125m), invoice.Subtotal);
+    }
+
+    [Fact]
+    public void AddLine_NumbersTheLinesInTheOrderTheyAreAdded()
+    {
+        var invoice = NewDraft();
+
+        invoice.AddLine(Guid.NewGuid(), "First", 1m, Money.Zar(10m), VatTreatment.Standard);
+        invoice.AddLine(Guid.NewGuid(), "Second", 1m, Money.Zar(10m), VatTreatment.Standard);
+        invoice.AddLine(Guid.NewGuid(), "Third", 1m, Money.Zar(10m), VatTreatment.Standard);
+
+        Assert.Equal(["First", "Second", "Third"], invoice.Lines.Select(line => line.Description));
+        Assert.Equal([0, 1, 2], invoice.Lines.Select(line => line.Position));
+    }
+
+    [Fact]
+    public void AddLine_AfterALineWasRemoved_GoesAfterTheLastOne()
+    {
+        var invoice = NewDraft();
+        var second = Guid.NewGuid();
+        invoice.AddLine(Guid.NewGuid(), "First", 1m, Money.Zar(10m), VatTreatment.Standard);
+        invoice.AddLine(second, "Second", 1m, Money.Zar(10m), VatTreatment.Standard);
+        invoice.AddLine(Guid.NewGuid(), "Third", 1m, Money.Zar(10m), VatTreatment.Standard);
+        invoice.RemoveLine(second);
+
+        invoice.AddLine(Guid.NewGuid(), "Fourth", 1m, Money.Zar(10m), VatTreatment.Standard);
+
+        Assert.Equal(["First", "Third", "Fourth"], invoice.Lines.Select(line => line.Description));
+    }
+
+    [Fact]
+    public void Revise_ALineThatIsRefused_LeavesTheDraftExactlyAsItWas()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Old", 1m, Money.Zar(100m), VatTreatment.Standard);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => invoice.Revise(
+            Guid.NewGuid(),
+            [
+                new DraftLine(Guid.NewGuid(), "Fine", 1m, Money.Zar(10m), VatTreatment.Standard),
+                new DraftLine(Guid.NewGuid(), "No quantity", 0m, Money.Zar(10m), VatTreatment.Standard),
+            ]));
+
+        Assert.Equal(_customerId, invoice.CustomerId);
+        Assert.Equal("Old", Assert.Single(invoice.Lines).Description);
+    }
+
+    [Fact]
+    public void Revise_AnInvoiceThatIsIssued_ThrowsAndChangesNothing()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Old", 1m, Money.Zar(100m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice);
+
+        Assert.Throws<InvalidOperationException>(() => invoice.Revise(Guid.NewGuid(), []));
+
+        Assert.Equal(_customerId, invoice.CustomerId);
+        Assert.Equal("Old", Assert.Single(invoice.Lines).Description);
+    }
+
+    [Fact]
+    public void Revise_WithNoCustomer_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => NewDraft().Revise(Guid.Empty, []));
+    }
+
+    [Fact]
+    public void EnsureDeletable_ADraft_IsAllowed()
+    {
+        Assert.Null(Record.Exception(NewDraft().EnsureDeletable));
+    }
+
+    [Theory]
+    [InlineData(InvoiceStatus.Issued)]
+    [InlineData(InvoiceStatus.PartiallyPaid)]
+    [InlineData(InvoiceStatus.Paid)]
+    [InlineData(InvoiceStatus.Cancelled)]
+    public void EnsureDeletable_AnInvoiceThatHasBeenIssued_Throws(InvoiceStatus status)
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
+        IssueAsTaxInvoice(invoice);
+
+        switch (status)
+        {
+            case InvoiceStatus.PartiallyPaid:
+                invoice.RecordPaymentTotal(Money.Zar(10m));
+                break;
+            case InvoiceStatus.Paid:
+                invoice.RecordPaymentTotal(invoice.Total);
+                break;
+            case InvoiceStatus.Cancelled:
+                invoice.Cancel();
+                break;
+        }
+
+        Assert.Equal(status, invoice.Status);
+        Assert.Throws<InvalidOperationException>(invoice.EnsureDeletable);
+    }
+
+    [Fact]
+    public void Issue_KeepsWhoTheInvoiceWasIssuedToAndBy()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
+
+        IssueAsTaxInvoice(invoice);
+
+        Assert.Equal(_customerDetails, invoice.IssuedTo);
+        Assert.Equal(_supplierDetails, invoice.IssuedBy);
+    }
+
+    [Fact]
+    public void CreateDraft_HasNoIssuedPartiesYet()
+    {
+        var draft = NewDraft();
+
+        Assert.Null(draft.IssuedTo);
+        Assert.Null(draft.IssuedBy);
+    }
+
+    [Fact]
+    public void Issue_WithoutACustomerName_ThrowsAndLeavesTheDraftAlone()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
+
+        Assert.Throws<ArgumentException>(() => invoice.Issue(
+            "INV-2026-0001", _issueDate, _issueDate, _dueDate, DocumentType.TaxInvoice, StandardRate,
+            _customerDetails with { Name = " " }, _supplierDetails));
+
+        Assert.Equal(InvoiceStatus.Draft, invoice.Status);
+        Assert.Null(invoice.IssuedTo);
+    }
+
+    [Fact]
+    public void Issue_WithoutACompanyName_ThrowsAndLeavesTheDraftAlone()
+    {
+        var invoice = NewDraft();
+        invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
+
+        Assert.Throws<ArgumentException>(() => invoice.Issue(
+            "INV-2026-0001", _issueDate, _issueDate, _dueDate, DocumentType.TaxInvoice, StandardRate,
+            _customerDetails, _supplierDetails with { CompanyName = "" }));
+
+        Assert.Equal(InvoiceStatus.Draft, invoice.Status);
+        Assert.Null(invoice.IssuedBy);
+    }
+
+    [Fact]
     public void IsOverdue_DraftInvoice_IsNeverOverdue()
     {
         var invoice = NewDraft();
@@ -455,7 +630,7 @@ public class InvoiceTests
         invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
         invoice.Issue(
             "INV-2026-0001", new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 15),
-            DocumentType.TaxInvoice, StandardRate);
+            DocumentType.TaxInvoice, StandardRate, _customerDetails, _supplierDetails);
 
         Assert.True(invoice.IsOverdue(new DateOnly(2026, 8, 16)));
     }
@@ -467,7 +642,7 @@ public class InvoiceTests
         invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
         invoice.Issue(
             "INV-2026-0001", new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 15),
-            DocumentType.TaxInvoice, StandardRate);
+            DocumentType.TaxInvoice, StandardRate, _customerDetails, _supplierDetails);
 
         Assert.False(invoice.IsOverdue(new DateOnly(2026, 8, 15)));
     }
@@ -505,7 +680,7 @@ public class InvoiceTests
         invoice.AddLine(Guid.NewGuid(), "Item", 1m, Money.Zar(100m), VatTreatment.Standard);
         invoice.Issue(
             "INV-2026-0001", new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 1), dueDate,
-            DocumentType.TaxInvoice, StandardRate);
+            DocumentType.TaxInvoice, StandardRate, _customerDetails, _supplierDetails);
 
         return invoice;
     }

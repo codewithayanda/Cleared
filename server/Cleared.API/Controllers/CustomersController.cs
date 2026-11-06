@@ -12,7 +12,7 @@ namespace Cleared.API.Controllers;
 [Authorize]
 [Route("api/v1/customers")]
 public sealed class CustomersController(
-    CreateCustomerService customerService, IdempotentExecutor idempotent, ITenantContext tenantContext)
+    CustomerService customerService, IdempotentExecutor idempotent, ITenantContext tenantContext)
     : ControllerBase
 {
     [HttpPost]
@@ -34,5 +34,23 @@ public sealed class CustomersController(
     public async Task<ActionResult<IReadOnlyList<CustomerResponse>>> List(CancellationToken cancellationToken)
     {
         return Ok(await customerService.ListAsync(tenantContext.TenantId, cancellationToken));
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<CustomerResponse>> Get(Guid id, CancellationToken cancellationToken)
+    {
+        var customer = await customerService.GetAsync(tenantContext.TenantId, id, cancellationToken);
+
+        return customer is null ? NotFound() : Ok(customer);
+    }
+
+    // A PUT, so doing it twice has the effect of doing it once and it needs no Idempotency-Key.
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<CustomerResponse>> Update(
+        Guid id, UpdateCustomerRequest request, CancellationToken cancellationToken)
+    {
+        var customer = await customerService.UpdateAsync(tenantContext.TenantId, id, request, cancellationToken);
+
+        return customer is null ? NotFound() : Ok(customer);
     }
 }

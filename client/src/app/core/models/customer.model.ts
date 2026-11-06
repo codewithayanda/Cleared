@@ -5,6 +5,9 @@ export interface CreateCustomerRequest {
   address: string | null;
 }
 
+// Changing a customer takes the same details as adding one.
+export type UpdateCustomerRequest = CreateCustomerRequest;
+
 export interface Customer {
   id: string;
   tenantId: string;

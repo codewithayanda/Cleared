@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { InvoiceService } from '@core/services/invoice.service';
 import { PaymentService } from '@core/services/payment.service';
 import { Invoice, ProblemDetails, VatTreatment } from '@core/models/invoice.model';
@@ -25,6 +25,7 @@ const VAT_TREATMENT_LABELS: Record<VatTreatment, string> = {
 })
 export class InvoiceDetail {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly invoiceService = inject(InvoiceService);
   private readonly paymentService = inject(PaymentService);
   private readonly fb = inject(FormBuilder);
@@ -44,6 +45,10 @@ export class InvoiceDetail {
   protected readonly showPaymentForm = signal(false);
   protected readonly recordingPayment = signal(false);
   protected readonly paymentError = signal<string | null>(null);
+
+  protected readonly showDeleteConfirm = signal(false);
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
 
   protected readonly downloadingPdf = signal(false);
 
@@ -124,6 +129,37 @@ export class InvoiceDetail {
           this.issueErrorFields.set(problem?.missingFields ?? null);
         },
       });
+  }
+
+  protected confirmDelete(): void {
+    const current = this.invoice();
+    if (!current) {
+      return;
+    }
+
+    this.deleting.set(true);
+    this.deleteError.set(null);
+
+    this.invoiceService.delete(current.id).subscribe({
+      next: () => this.router.navigateByUrl('/invoices'),
+      error: (error: unknown) => {
+        const status = error instanceof HttpErrorResponse ? error.status : 0;
+
+        // Already gone: deleted from another tab, or by an earlier try whose answer never arrived. The
+        // draft is not there, which is what was asked for.
+        if (status === 404) {
+          this.router.navigateByUrl('/invoices');
+          return;
+        }
+
+        this.deleting.set(false);
+        this.deleteError.set(
+          status === 409
+            ? 'This invoice has been issued, so it can no longer be deleted. Issued invoices are corrected with a credit note.'
+            : 'Could not delete the draft. Please try again.',
+        );
+      },
+    });
   }
 
   protected confirmPayment(): void {

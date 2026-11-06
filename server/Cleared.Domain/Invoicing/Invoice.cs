@@ -7,7 +7,7 @@ public sealed class Invoice : Entity
     private readonly List<InvoiceLineItem> _lines = [];
 
     public Guid TenantId { get; }
-    public Guid CustomerId { get; }
+    public Guid CustomerId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public InvoiceStatus Status { get; private set; }
     public string? Number { get; private set; }
@@ -24,7 +24,26 @@ public sealed class Invoice : Entity
     // Snapshotted at Issue() and never re-read afterwards. See VatRate.
     public decimal? VatRateApplied { get; private set; }
 
-    public IReadOnlyList<InvoiceLineItem> Lines => _lines;
+    // Copied from the customer and the company at Issue() and never changed after that, so a later edit
+    // to either cannot rewrite an invoice that has gone out. A draft has none yet.
+    public string? CustomerName { get; private set; }
+    public string? CustomerAddress { get; private set; }
+    public string? CustomerVatNumber { get; private set; }
+    public string? SupplierCompanyName { get; private set; }
+    public string? SupplierTradingName { get; private set; }
+    public string? SupplierAddress { get; private set; }
+    public string? SupplierVatNumber { get; private set; }
+
+    public CustomerDetails? IssuedTo =>
+        CustomerName is null ? null : new CustomerDetails(CustomerName, CustomerAddress, CustomerVatNumber);
+
+    public SupplierDetails? IssuedBy => SupplierCompanyName is null
+        ? null
+        : new SupplierDetails(SupplierCompanyName, SupplierTradingName, SupplierAddress, SupplierVatNumber);
+
+    // In the order they were entered. The database returns them in no order that means anything, so this
+    // sorts by position wherever the invoice was loaded from.
+    public IReadOnlyList<InvoiceLineItem> Lines => [.. _lines.OrderBy(line => line.Position)];
 
     // Computed from the lines, not stored. Safe once issued because AddLine/RemoveLine
     // reject anything past Draft, so the inputs are frozen at issue.
@@ -80,7 +99,9 @@ public sealed class Invoice : Entity
             throw new InvalidOperationException("Cannot add a line to an invoice that has already been issued.");
         }
 
-        _lines.Add(InvoiceLineItem.Create(lineId, Id, description, quantity, unitPrice, vatTreatment));
+        var position = _lines.Count == 0 ? 0 : _lines.Max(line => line.Position) + 1;
+
+        _lines.Add(InvoiceLineItem.Create(lineId, Id, position, description, quantity, unitPrice, vatTreatment));
     }
 
     public void RemoveLine(Guid lineId)
@@ -100,6 +121,40 @@ public sealed class Invoice : Entity
         _lines.Remove(line);
     }
 
+    // Replaces the customer and every line at once, because the form sends them as a whole. Every line
+    // is built before anything changes, so if one is refused the draft stays exactly as it was.
+    public void Revise(Guid customerId, IReadOnlyList<DraftLine> lines)
+    {
+        if (Status != InvoiceStatus.Draft)
+        {
+            throw new InvalidOperationException("Only a draft invoice can be changed.");
+        }
+
+        if (customerId == Guid.Empty)
+        {
+            throw new ArgumentException("An invoice must have a customer.", nameof(customerId));
+        }
+
+        var replacements = lines
+            .Select((l, index) =>
+                InvoiceLineItem.Create(l.Id, Id, index, l.Description, l.Quantity, l.UnitPrice, l.VatTreatment))
+            .ToList();
+
+        CustomerId = customerId;
+        _lines.Clear();
+        _lines.AddRange(replacements);
+    }
+
+    // An issued invoice is part of the record and is corrected with a credit note, never removed.
+    public void EnsureDeletable()
+    {
+        if (Status != InvoiceStatus.Draft)
+        {
+            throw new InvalidOperationException(
+                "Only a draft invoice can be deleted. An issued invoice is corrected with a credit note.");
+        }
+    }
+
     // documentType and vatRate come from the caller (Application layer): DocumentType
     // depends on the tenant's VatStatus and vatRate on a VatRate lookup, neither of which
     // Invoice can reach. Tax-invoice validation against the Customer is one level up too.
@@ -109,11 +164,26 @@ public sealed class Invoice : Entity
         DateOnly supplyDate,
         DateOnly dueDate,
         DocumentType documentType,
-        decimal vatRate)
+        decimal vatRate,
+        CustomerDetails customer,
+        SupplierDetails supplier)
     {
+        ArgumentNullException.ThrowIfNull(customer);
+        ArgumentNullException.ThrowIfNull(supplier);
+
         if (Status != InvoiceStatus.Draft)
         {
             throw new InvalidOperationException("Only a draft invoice can be issued.");
+        }
+
+        if (string.IsNullOrWhiteSpace(customer.Name))
+        {
+            throw new ArgumentException("An issued invoice must name its customer.", nameof(customer));
+        }
+
+        if (string.IsNullOrWhiteSpace(supplier.CompanyName))
+        {
+            throw new ArgumentException("An issued invoice must name the company that issued it.", nameof(supplier));
         }
 
         if (_lines.Count == 0)
@@ -142,6 +212,13 @@ public sealed class Invoice : Entity
         DueDate = dueDate;
         DocumentType = documentType;
         VatRateApplied = vatRate;
+        CustomerName = customer.Name;
+        CustomerAddress = customer.Address;
+        CustomerVatNumber = customer.VatNumber;
+        SupplierCompanyName = supplier.CompanyName;
+        SupplierTradingName = supplier.TradingName;
+        SupplierAddress = supplier.Address;
+        SupplierVatNumber = supplier.VatNumber;
         Status = InvoiceStatus.Issued;
     }
 

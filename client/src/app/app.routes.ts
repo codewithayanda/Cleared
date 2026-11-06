@@ -47,6 +47,11 @@ export const routes: Routes = [
           import('./features/customers/customer-form/customer-form').then((m) => m.CustomerForm),
       },
       {
+        path: 'customers/:id/edit',
+        loadComponent: () =>
+          import('./features/customers/customer-form/customer-form').then((m) => m.CustomerForm),
+      },
+      {
         path: 'invoices',
         loadComponent: () =>
           import('./features/invoices/invoice-list/invoice-list').then((m) => m.InvoiceList),
@@ -60,6 +65,11 @@ export const routes: Routes = [
         path: 'invoices/:id',
         loadComponent: () =>
           import('./features/invoices/invoice-detail/invoice-detail').then((m) => m.InvoiceDetail),
+      },
+      {
+        path: 'invoices/:id/edit',
+        loadComponent: () =>
+          import('./features/invoices/invoice-form/invoice-form').then((m) => m.InvoiceForm),
       },
       {
         path: 'audit',

@@ -22,6 +22,9 @@ export interface CreateInvoiceRequest {
   lines: CreateInvoiceLineRequest[];
 }
 
+// A draft is changed by sending it whole again: the customer and every line, which replace what was there.
+export type UpdateInvoiceRequest = CreateInvoiceRequest;
+
 export interface InvoiceLine {
   id: string;
   description: string;

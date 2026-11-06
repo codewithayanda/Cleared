@@ -43,6 +43,25 @@ public sealed class InvoicesController(
         return Ok(await invoiceService.ListAsync(tenantContext.TenantId, cancellationToken));
     }
 
+    // A PUT, so doing it twice has the effect of doing it once and it needs no Idempotency-Key.
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<InvoiceResponse>> Update(
+        Guid id, UpdateInvoiceRequest request, CancellationToken cancellationToken)
+    {
+        var invoice = await invoiceService.UpdateAsync(tenantContext.TenantId, id, request, cancellationToken);
+
+        return invoice is null ? NotFound() : Ok(invoice);
+    }
+
+    // The second of two deletes finds nothing and says so, so repeating it is safe and needs no Idempotency-Key.
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var deleted = await invoiceService.DeleteAsync(tenantContext.TenantId, id, cancellationToken);
+
+        return deleted ? NoContent() : NotFound();
+    }
+
     [HttpPost("{id:guid}/issue")]
     public async Task<ActionResult<InvoiceResponse>> Issue(
         Guid id,

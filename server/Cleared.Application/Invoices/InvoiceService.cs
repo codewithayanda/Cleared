@@ -40,17 +40,9 @@ public sealed class InvoiceService(
 
         var invoice = Invoice.CreateDraft(Guid.NewGuid(), tenantId, request.CustomerId, clock.UtcNow);
 
-        foreach (var line in request.Lines)
+        foreach (var line in request.Lines.Select(line => ToDraftLine(tenant, line)))
         {
-            var unitPrice = Money.Zar(MoneyText.Parse(line.UnitPrice, "Unit price"));
-
-            // A tenant that is not VAT registered cannot charge output VAT, which overrides
-            // whatever treatment the client requested.
-            var vatTreatment = tenant.VatStatus == VatStatus.NotRegistered
-                ? VatTreatment.NotApplicable
-                : line.VatTreatment;
-
-            invoice.AddLine(Guid.NewGuid(), line.Description, line.Quantity, unitPrice, vatTreatment);
+            invoice.AddLine(line.Id, line.Description, line.Quantity, line.UnitPrice, line.VatTreatment);
         }
 
         await invoiceRepository.AddAsync(invoice, cancellationToken);
@@ -94,6 +86,65 @@ public sealed class InvoiceService(
             .ToList();
     }
 
+    public async Task<InvoiceResponse?> UpdateAsync(
+        Guid tenantId, Guid invoiceId, UpdateInvoiceRequest request, CancellationToken cancellationToken)
+    {
+        // The row lock makes a change wait for an issue that is under way and then find the invoice issued,
+        // instead of rewriting lines under a total that has already been fixed.
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var invoice = await invoiceLock.AcquireAsync(tenantId, invoiceId, cancellationToken)
+            ? await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken)
+            : null;
+        if (invoice is null)
+        {
+            return null;
+        }
+
+        var tenant = await tenantRepository.GetByIdAsync(tenantId, cancellationToken)
+            ?? throw new InvalidOperationException("The current tenant no longer exists.");
+
+        // Another tenant's customer and a missing one get the same answer, as when creating.
+        if (await customerRepository.GetByIdAsync(tenantId, request.CustomerId, cancellationToken) is null)
+        {
+            throw new ArgumentException("The customer does not exist.", nameof(request));
+        }
+
+        invoice.Revise(request.CustomerId, [.. request.Lines.Select(line => ToDraftLine(tenant, line))]);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        // Only a draft can be changed, and a draft has no payments.
+        return InvoiceMapper.ToResponse(invoice, Money.Zero, clock.Today);
+    }
+
+    public async Task<bool> DeleteAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken)
+    {
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var invoice = await invoiceLock.AcquireAsync(tenantId, invoiceId, cancellationToken)
+            ? await invoiceRepository.GetByIdAsync(tenantId, invoiceId, cancellationToken)
+            : null;
+        if (invoice is null)
+        {
+            return false;
+        }
+
+        invoice.EnsureDeletable();
+
+        invoiceRepository.Remove(invoice);
+        var auditEntry = AuditLog.Record(
+            Guid.NewGuid(), tenantId, currentUserContext.UserId, "Invoice", invoice.Id, "Deleted", clock.UtcNow,
+            $"Deleted a draft with {invoice.Lines.Count} line(s), subtotal R{invoice.Subtotal.Amount:F2}.");
+        await auditLogRepository.AddAsync(auditEntry, cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return true;
+    }
+
     public async Task<InvoiceResponse?> IssueAsync(
         Guid tenantId, Guid invoiceId, IssueInvoiceRequest request, CancellationToken cancellationToken)
     {
@@ -121,18 +172,21 @@ public sealed class InvoiceService(
 
         var documentType = tenant.CanIssueTaxInvoices() ? DocumentType.TaxInvoice : DocumentType.Invoice;
 
+        var customer = await customerRepository.GetByIdAsync(tenantId, invoice.CustomerId, cancellationToken)
+            ?? throw new InvalidOperationException("The customer on this invoice no longer exists.");
+
         if (documentType == DocumentType.TaxInvoice)
         {
-            var customer = await customerRepository.GetByIdAsync(tenantId, invoice.CustomerId, cancellationToken)
-                ?? throw new InvalidOperationException("The customer on this invoice no longer exists.");
-
             // Runs before Issue() mutates anything, so a rejected tax invoice leaves the
             // draft untouched and nothing is persisted.
             ValidateTaxInvoiceFields(tenant, customer, invoice.ProspectiveTotal(vatRate.Rate));
         }
 
         var number = await numberAllocator.AllocateAsync(tenantId, request.IssueDate.Year, cancellationToken);
-        invoice.Issue(number, request.IssueDate, supplyDate, request.DueDate, documentType, vatRate.Rate);
+        invoice.Issue(
+            number, request.IssueDate, supplyDate, request.DueDate, documentType, vatRate.Rate,
+            new CustomerDetails(customer.Name, customer.Address, customer.VatNumber),
+            new SupplierDetails(tenant.CompanyName, tenant.TradingName, tenant.Address, tenant.VatNumber));
 
         var auditEntry = AuditLog.Record(
             Guid.NewGuid(), tenantId, currentUserContext.UserId, "Invoice", invoice.Id, "Issued", clock.UtcNow,
@@ -158,19 +212,51 @@ public sealed class InvoiceService(
         var tenant = await tenantRepository.GetByIdAsync(tenantId, cancellationToken)
             ?? throw new InvalidOperationException("The current tenant no longer exists.");
 
-        var customer = await customerRepository.GetByIdAsync(tenantId, invoice.CustomerId, cancellationToken)
-            ?? throw new InvalidOperationException("The customer on this invoice no longer exists.");
-
+        var customer = await CustomerForDocumentAsync(invoice, cancellationToken);
         var payments = await paymentRepository.ListByInvoiceIdAsync(tenantId, invoiceId, cancellationToken);
         var today = clock.Today;
 
         return pdfRenderer.Render(InvoiceDocumentBuilder.Build(
             InvoiceMapper.ToResponse(invoice, SumOf(payments), today),
-            CustomerMapper.ToResponse(customer),
-            TenantMapper.ToResponse(tenant),
+            customer,
+            SupplierForDocument(invoice, tenant),
             [.. payments.Select(PaymentMapper.ToResponse)],
             today));
     }
+
+    // An issued invoice shows the details it was issued with, so a later edit cannot rewrite it. A draft
+    // has none yet and shows what the customer has now.
+    private async Task<CustomerResponse> CustomerForDocumentAsync(Invoice invoice, CancellationToken cancellationToken)
+    {
+        if (invoice.IssuedTo is { } issuedTo)
+        {
+            return new CustomerResponse(
+                invoice.CustomerId, invoice.TenantId, issuedTo.Name, issuedTo.VatNumber, null, issuedTo.Address);
+        }
+
+        var customer = await customerRepository.GetByIdAsync(invoice.TenantId, invoice.CustomerId, cancellationToken)
+            ?? throw new InvalidOperationException("The customer on this invoice no longer exists.");
+
+        return CustomerMapper.ToResponse(customer);
+    }
+
+    // The bank details stay live on purpose, so an invoice that is still owed shows where to pay now.
+    private static TenantResponse SupplierForDocument(Invoice invoice, Tenant tenant) =>
+        invoice.IssuedBy is { } issuedBy
+            ? new TenantResponse(
+                tenant.Id, issuedBy.CompanyName, issuedBy.TradingName, tenant.VatStatus.ToString(),
+                issuedBy.VatNumber, issuedBy.Address, tenant.BankName, tenant.BankAccountNumber,
+                tenant.BankBranchCode)
+            : TenantMapper.ToResponse(tenant);
+
+    // A tenant that is not VAT registered cannot charge output VAT, which overrides whatever treatment the
+    // client requested.
+    private static DraftLine ToDraftLine(Tenant tenant, CreateInvoiceLineRequest line) => new(
+        Guid.NewGuid(),
+        line.Description,
+        line.Quantity,
+        Money.Zar(MoneyText.Parse(line.UnitPrice, "Unit price")),
+        tenant.VatStatus == VatStatus.NotRegistered ? VatTreatment.NotApplicable : line.VatTreatment);
 
     private async Task<Money> GetAmountPaidAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken) =>
         SumOf(await paymentRepository.ListByInvoiceIdAsync(tenantId, invoiceId, cancellationToken));

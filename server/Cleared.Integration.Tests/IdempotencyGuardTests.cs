@@ -24,6 +24,9 @@ public class IdempotencyGuardTests(ClearedApiFactory factory)
         ["POST api/v1/auth/verify-email"] = "single use by design, a repeat finds the link already used",
         ["POST api/v1/users/me/email-verification"] = "a repeat sends another link, which the cap on each person counts and which ends the older one",
         ["PUT api/v1/tenants/me"] = "a PUT, so repeating it has the same effect as doing it once",
+        ["PUT api/v1/customers/{id:guid}"] = "a PUT, so repeating it has the same effect as doing it once",
+        ["PUT api/v1/invoices/{id:guid}"] = "a PUT, so repeating it has the same effect as doing it once",
+        ["DELETE api/v1/invoices/{id:guid}"] = "a repeat finds the draft already gone and answers 404, so nothing happens twice",
     };
 
     [Fact]

@@ -9,3 +9,6 @@ public sealed record CreateInvoiceLineRequest(
     string Description, decimal Quantity, string UnitPrice, VatTreatment VatTreatment = VatTreatment.Standard);
 
 public sealed record CreateInvoiceRequest(Guid CustomerId, IReadOnlyList<CreateInvoiceLineRequest> Lines);
+
+// Changing a draft sends it whole again: the customer and every line, which replace what was there.
+public sealed record UpdateInvoiceRequest(Guid CustomerId, IReadOnlyList<CreateInvoiceLineRequest> Lines);

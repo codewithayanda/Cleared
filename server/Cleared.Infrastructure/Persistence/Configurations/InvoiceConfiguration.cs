@@ -24,6 +24,17 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.VatRateApplied)
             .HasPrecision(9, 6);
 
+        // The lengths match the customer and the company they are copied from, so a copy never overflows.
+        builder.Property(i => i.CustomerName).HasMaxLength(200);
+        builder.Property(i => i.CustomerAddress).HasMaxLength(500);
+        builder.Property(i => i.CustomerVatNumber).HasMaxLength(20);
+        builder.Property(i => i.SupplierCompanyName).HasMaxLength(200);
+        builder.Property(i => i.SupplierTradingName).HasMaxLength(200);
+        builder.Property(i => i.SupplierAddress).HasMaxLength(500);
+        builder.Property(i => i.SupplierVatNumber).HasMaxLength(20);
+        builder.Ignore(i => i.IssuedTo);
+        builder.Ignore(i => i.IssuedBy);
+
         // Subtotal, VatTotal and Total are computed from Lines (see Invoice.cs), never
         // stored: persisting them would let them drift from the lines that produced them.
         // AddLine/RemoveLine reject anything past Draft, so those lines are frozen at issue.

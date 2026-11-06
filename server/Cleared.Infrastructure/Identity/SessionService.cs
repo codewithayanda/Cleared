@@ -19,7 +19,7 @@ public sealed partial class SessionService(
     ILogger<SessionService> logger) : ISessionService
 {
     // Finished sessions are kept this long past their last day, so a late replay is still recognised.
-    private static readonly TimeSpan FinishedRetention = TimeSpan.FromDays(1);
+    private static readonly TimeSpan _finishedRetention = TimeSpan.FromDays(1);
 
     private readonly SessionLifetimeOptions _options = options.Value;
 
@@ -32,7 +32,7 @@ public sealed partial class SessionService(
         var now = clock.UtcNow;
 
         await Tokens
-            .Where(t => t.UserId == userId && t.FamilyExpiresAt < now - FinishedRetention)
+            .Where(t => t.UserId == userId && t.FamilyExpiresAt < now - _finishedRetention)
             .ExecuteDeleteAsync(cancellationToken);
 
         var familyId = Guid.NewGuid();
