@@ -9,6 +9,10 @@ public sealed class InvoiceLineItem : Entity
     public decimal Quantity { get; }
     public VatTreatment VatTreatment { get; }
 
+    // Where the line sits on the invoice, counting up from zero in the order the person entered them. Gaps are
+    // fine, and only the order counts. A line's id is a random Guid and the database gives no order of its own.
+    public int Position { get; private set; }
+
     // Money is an owned type in the EF model (amount + currency columns), and EF Core's
     // constructor binding cannot compose a nested complex value into a constructor
     // parameter. Set via private setters in Create() and ApplyVatRate() instead.
@@ -30,7 +34,13 @@ public sealed class InvoiceLineItem : Entity
     }
 
     internal static InvoiceLineItem Create(
-        Guid id, Guid invoiceId, string description, decimal quantity, Money unitPrice, VatTreatment vatTreatment)
+        Guid id,
+        Guid invoiceId,
+        int position,
+        string description,
+        decimal quantity,
+        Money unitPrice,
+        VatTreatment vatTreatment)
     {
         if (invoiceId == Guid.Empty)
         {
@@ -49,6 +59,7 @@ public sealed class InvoiceLineItem : Entity
 
         return new InvoiceLineItem(id, invoiceId, description, quantity, vatTreatment)
         {
+            Position = position,
             UnitPrice = unitPrice,
             LineSubtotal = unitPrice.MultiplyBy(quantity),
         };

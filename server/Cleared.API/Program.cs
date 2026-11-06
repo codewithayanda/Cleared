@@ -157,7 +157,7 @@ builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<CreditNoteService>();
 builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<AuditLogService>();
-builder.Services.AddScoped<CreateCustomerService>();
+builder.Services.AddScoped<CustomerService>();
 builder.Services.AddScoped<RegisterTenantService>();
 
 var app = builder.Build();

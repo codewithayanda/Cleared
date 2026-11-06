@@ -33,15 +33,19 @@ public class InvoiceServiceTests
         return tenant.Id;
     }
 
-    private Guid SeedCustomer(Guid tenantId, string? address = "1 Main Road, Cape Town", string? vatNumber = null)
+    private Guid SeedCustomer(
+        Guid tenantId, string? address = "1 Main Road, Cape Town", string? vatNumber = null, string name = "Beta Co")
     {
-        var customer = Customer.Create(Guid.NewGuid(), tenantId, "Beta Co", _now, vatNumber, address: address);
+        var customer = Customer.Create(Guid.NewGuid(), tenantId, name, _now, vatNumber, address: address);
         _customerRepository.Seed(customer);
         return customer.Id;
     }
 
     private static CreateInvoiceRequest RequestFor(Guid customerId, decimal unitPrice, VatTreatment treatment) =>
         new(customerId, [new CreateInvoiceLineRequest("Consulting", 1m, unitPrice.ToString("F2"), treatment)]);
+
+    private static UpdateInvoiceRequest UpdateFor(Guid customerId, decimal unitPrice, VatTreatment treatment) =>
+        new(customerId, RequestFor(customerId, unitPrice, treatment).Lines);
 
     [Fact]
     public async Task CreateAsync_NotRegisteredTenant_CoercesLineTreatmentToNotApplicable()
@@ -368,6 +372,344 @@ public class InvoiceServiceTests
 
         Assert.Null(pdf);
         Assert.Null(_pdfRenderer.Last);
+    }
+
+    [Fact]
+    public async Task IssueAsync_CopiesTheCustomerAndCompanyDetailsOntoTheInvoice()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId, vatNumber: "4987654321");
+        var invoiceId = await IssuedInvoiceAsync(tenantId, customerId);
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, invoiceId, CancellationToken.None);
+
+        Assert.Equal(new CustomerDetails("Beta Co", "1 Main Road, Cape Town", "4987654321"), stored!.IssuedTo);
+        Assert.Equal(new SupplierDetails("Acme Ltd", null, "1 Acme Way, Johannesburg", "4123456789"), stored.IssuedBy);
+    }
+
+    [Fact]
+    public async Task IssueAsync_AnInvoiceThatIsNotATaxInvoiceKeepsTheDetailsToo()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var customerId = SeedCustomer(tenantId);
+        var invoiceId = await IssuedInvoiceAsync(tenantId, customerId);
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, invoiceId, CancellationToken.None);
+
+        Assert.Equal("Beta Co", stored!.IssuedTo?.Name);
+        Assert.Equal("Acme Ltd", stored.IssuedBy?.CompanyName);
+    }
+
+    [Fact]
+    public async Task GetPdfAsync_AnIssuedInvoiceKeepsTheDetailsItWasIssuedWith()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId, vatNumber: "4987654321");
+        var invoiceId = await IssuedInvoiceAsync(tenantId, customerId);
+
+        await ChangeCustomerAndCompanyAsync(tenantId, customerId);
+        await CreateService().GetPdfAsync(tenantId, invoiceId, CancellationToken.None);
+
+        var document = _pdfRenderer.Last!;
+        Assert.Equal("Beta Co", document.Customer.Name);
+        Assert.Equal("1 Main Road, Cape Town", document.Customer.Address);
+        Assert.Equal("4987654321", document.Customer.VatNumber);
+        Assert.Equal("Acme Ltd", document.Tenant.CompanyName);
+        Assert.Null(document.Tenant.TradingName);
+        Assert.Equal("1 Acme Way, Johannesburg", document.Tenant.Address);
+    }
+
+    [Fact]
+    public async Task GetPdfAsync_TheBankDetailsAreAlwaysTheCurrentOnes()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var invoiceId = await IssuedInvoiceAsync(tenantId, customerId);
+
+        await ChangeCustomerAndCompanyAsync(tenantId, customerId);
+        await CreateService().GetPdfAsync(tenantId, invoiceId, CancellationToken.None);
+
+        var document = _pdfRenderer.Last!;
+        Assert.Equal("Nedbank", document.Tenant.BankName);
+        Assert.Equal("99887766", document.Tenant.BankAccountNumber);
+        Assert.Equal("198765", document.Tenant.BankBranchCode);
+    }
+
+    [Fact]
+    public async Task GetPdfAsync_ADraftShowsTheDetailsTheCustomerHasNow()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        await ChangeCustomerAndCompanyAsync(tenantId, customerId);
+        await service.GetPdfAsync(tenantId, draft.Id, CancellationToken.None);
+
+        var document = _pdfRenderer.Last!;
+        Assert.Equal("Gamma Ltd", document.Customer.Name);
+        Assert.Equal("9 High Street", document.Customer.Address);
+        Assert.Equal("Acme Holdings", document.Tenant.CompanyName);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReplacesTheCustomerAndEveryLine()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var firstCustomerId = SeedCustomer(tenantId);
+        var secondCustomerId = SeedCustomer(tenantId, name: "Gamma Ltd");
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(firstCustomerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        var response = await service.UpdateAsync(
+            tenantId,
+            draft.Id,
+            new UpdateInvoiceRequest(
+                secondCustomerId,
+                [
+                    new CreateInvoiceLineRequest("Design", 2m, "50.00"),
+                    new CreateInvoiceLineRequest("Hosting", 1m, "25.00", VatTreatment.ZeroRated),
+                ]),
+            CancellationToken.None);
+
+        Assert.Equal(secondCustomerId, response!.CustomerId);
+        Assert.Equal(["Design", "Hosting"], response.Lines.Select(line => line.Description));
+        Assert.Equal("125.00", response.Subtotal);
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, draft.Id, CancellationToken.None);
+        Assert.Equal(secondCustomerId, stored!.CustomerId);
+        Assert.Equal(["Design", "Hosting"], stored.Lines.Select(line => line.Description));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NotRegisteredTenant_CoercesLineTreatmentToNotApplicable()
+    {
+        var tenantId = SeedTenant(VatStatus.NotRegistered, vatNumber: null);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.NotApplicable), CancellationToken.None);
+
+        var response = await service.UpdateAsync(
+            tenantId, draft.Id, UpdateFor(customerId, 80m, VatTreatment.Standard), CancellationToken.None);
+
+        Assert.Equal(nameof(VatTreatment.NotApplicable), response!.Lines[0].VatTreatment);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_UnknownInvoice_ReturnsNull()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+
+        var result = await CreateService().UpdateAsync(
+            tenantId, Guid.NewGuid(), new UpdateInvoiceRequest(customerId, []), CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AnotherTenantsInvoice_ReturnsNullAndChangesNothing()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var intruderTenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var intruderCustomerId = SeedCustomer(intruderTenantId);
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        var result = await service.UpdateAsync(
+            intruderTenantId, draft.Id, UpdateFor(intruderCustomerId, 1m, VatTreatment.Standard), CancellationToken.None);
+
+        Assert.Null(result);
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, draft.Id, CancellationToken.None);
+        Assert.Equal(customerId, stored!.CustomerId);
+        Assert.Equal(Money.Zar(100m), Assert.Single(stored.Lines).UnitPrice);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AnotherTenantsCustomer_ThrowsAndChangesNothing()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var otherTenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var othersCustomerId = SeedCustomer(otherTenantId);
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateAsync(
+            tenantId, draft.Id, UpdateFor(othersCustomerId, 1m, VatTreatment.Standard), CancellationToken.None));
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, draft.Id, CancellationToken.None);
+        Assert.Equal(customerId, stored!.CustomerId);
+        Assert.Equal("Consulting", Assert.Single(stored.Lines).Description);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AnIssuedInvoice_ThrowsAndChangesNothing()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var invoiceId = await IssuedInvoiceAsync(tenantId, customerId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().UpdateAsync(
+            tenantId, invoiceId,
+            new UpdateInvoiceRequest(customerId, [new CreateInvoiceLineRequest("Rewritten", 1m, "1.00")]),
+            CancellationToken.None));
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, invoiceId, CancellationToken.None);
+        Assert.Equal("Consulting", Assert.Single(stored!.Lines).Description);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ALineThatIsRefused_LeavesTheDraftAsItWas()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var otherCustomerId = SeedCustomer(tenantId, name: "Gamma Ltd");
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.UpdateAsync(
+            tenantId, draft.Id,
+            new UpdateInvoiceRequest(
+                otherCustomerId,
+                [
+                    new CreateInvoiceLineRequest("Fine", 1m, "10.00"),
+                    new CreateInvoiceLineRequest("No quantity", 0m, "10.00"),
+                ]),
+            CancellationToken.None));
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, draft.Id, CancellationToken.None);
+        Assert.Equal(customerId, stored!.CustomerId);
+        Assert.Equal("Consulting", Assert.Single(stored.Lines).Description);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_APriceThatIsNotAnAmount_ThrowsAndLeavesTheDraftAsItWas()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateAsync(
+            tenantId, draft.Id,
+            new UpdateInvoiceRequest(customerId, [new CreateInvoiceLineRequest("Item", 1m, "ten rand")]),
+            CancellationToken.None));
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, draft.Id, CancellationToken.None);
+        Assert.Equal("Consulting", Assert.Single(stored!.Lines).Description);
+    }
+
+    [Fact]
+    public async Task IssueAsync_AfterTheCustomerOfADraftWasChanged_CopiesTheNewCustomer()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var firstCustomerId = SeedCustomer(tenantId);
+        var secondCustomerId = SeedCustomer(tenantId, name: "Gamma Ltd");
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(firstCustomerId, 100m, VatTreatment.Standard), CancellationToken.None);
+        await service.UpdateAsync(
+            tenantId, draft.Id, UpdateFor(secondCustomerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        await service.IssueAsync(
+            tenantId, draft.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
+
+        var stored = await _invoiceRepository.GetByIdAsync(tenantId, draft.Id, CancellationToken.None);
+        Assert.Equal("Gamma Ltd", stored!.IssuedTo?.Name);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ADraft_RemovesItAndWritesAnAuditEntry()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        var deleted = await service.DeleteAsync(tenantId, draft.Id, CancellationToken.None);
+
+        Assert.True(deleted);
+        Assert.Null(await service.GetByIdAsync(tenantId, draft.Id, CancellationToken.None));
+        var entry = Assert.Single(_auditLogRepository.Entries);
+        Assert.Equal("Invoice", entry.EntityType);
+        Assert.Equal(draft.Id, entry.EntityId);
+        Assert.Equal("Deleted", entry.Action);
+        Assert.Contains("1 line", entry.Details);
+        Assert.Contains("100.00", entry.Details);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_UnknownInvoice_ReturnsFalseAndWritesNothing()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+
+        var deleted = await CreateService().DeleteAsync(tenantId, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(deleted);
+        Assert.Empty(_auditLogRepository.Entries);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AnotherTenantsDraft_ReturnsFalseAndKeepsIt()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var intruderTenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+
+        var deleted = await service.DeleteAsync(intruderTenantId, draft.Id, CancellationToken.None);
+
+        Assert.False(deleted);
+        Assert.NotNull(await service.GetByIdAsync(tenantId, draft.Id, CancellationToken.None));
+        Assert.Empty(_auditLogRepository.Entries);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AnIssuedInvoice_ThrowsAndKeepsIt()
+    {
+        var tenantId = SeedTenant(VatStatus.Registered);
+        var customerId = SeedCustomer(tenantId);
+        var invoiceId = await IssuedInvoiceAsync(tenantId, customerId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CreateService().DeleteAsync(tenantId, invoiceId, CancellationToken.None));
+
+        Assert.NotNull(await CreateService().GetByIdAsync(tenantId, invoiceId, CancellationToken.None));
+        Assert.DoesNotContain(_auditLogRepository.Entries, entry => entry.Action == "Deleted");
+    }
+
+    private async Task<Guid> IssuedInvoiceAsync(Guid tenantId, Guid customerId)
+    {
+        var service = CreateService();
+        var draft = await service.CreateAsync(
+            tenantId, RequestFor(customerId, 100m, VatTreatment.Standard), CancellationToken.None);
+        await service.IssueAsync(
+            tenantId, draft.Id, new IssueInvoiceRequest(_today, _today.AddDays(30)), CancellationToken.None);
+
+        return draft.Id;
+    }
+
+    // Edits the way the app does: the customer through its form, the company through its name and settings.
+    private async Task ChangeCustomerAndCompanyAsync(Guid tenantId, Guid customerId)
+    {
+        var customer = (await _customerRepository.GetByIdAsync(tenantId, customerId, CancellationToken.None))!;
+        customer.UpdateDetails("Gamma Ltd", "4111111111", null, "9 High Street");
+
+        var tenant = (await _tenantRepository.GetByIdAsync(tenantId, CancellationToken.None))!;
+        tenant.Rename("Acme Holdings", "Acme Trading");
+        tenant.UpdateProfile("5 New Road", "Nedbank", "99887766", "198765");
     }
 
     private static async Task<InvoiceResponse> IssueDueOnAsync(

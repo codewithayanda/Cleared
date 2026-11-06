@@ -10,6 +10,8 @@ public class CreditNoteServiceTests
     private static readonly Guid _tenantId = Guid.NewGuid();
     private static readonly Guid _customerId = Guid.NewGuid();
     private static readonly DateTimeOffset _createdAt = new(2026, 8, 28, 9, 0, 0, TimeSpan.Zero);
+    private static readonly CustomerDetails _customerDetails = new("Beta Co", "1 Main Road", null);
+    private static readonly SupplierDetails _supplierDetails = new("Acme Ltd", null, "1 Acme Way", "4123456789");
     private static readonly DateOnly _issueDate = new(2026, 8, 28);
     private static readonly DateOnly _today = new(2026, 9, 1);
     private const decimal StandardRate = 0.15m;
@@ -36,7 +38,9 @@ public class CreditNoteServiceTests
             invoice.AddLine(lineId, "Item", quantity, Money.Zar(unitPrice), VatTreatment.Standard);
         }
 
-        invoice.Issue("INV-2026-0001", _issueDate, _issueDate, _issueDate.AddDays(30), DocumentType.TaxInvoice, StandardRate);
+        invoice.Issue(
+            "INV-2026-0001", _issueDate, _issueDate, _issueDate.AddDays(30), DocumentType.TaxInvoice, StandardRate,
+            _customerDetails, _supplierDetails);
         _invoiceRepository.Seed(invoice);
 
         return invoice;

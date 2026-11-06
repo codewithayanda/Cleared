@@ -83,6 +83,91 @@ public class InvoiceConcurrencyTests(ClearedApiFactory factory)
         Assert.Equal($"INV-{year}-0002", next.Number);
     }
 
+    // Changing a draft rewrites its lines, so a change that lands after the issue would alter an invoice whose
+    // total has already been fixed and sent. Each change prices the draft differently, so one that slips in
+    // after the issue shows up as a total that is not the one the issue reported.
+    [Fact]
+    public async Task Changing_a_draft_while_it_is_issued_never_alters_the_invoice_after_the_issue()
+    {
+        var owner = await factory.CreateTenantAsync();
+        var customer = await owner.Client.CreateCustomerAsync("Race Customer");
+
+        for (var round = 0; round < 5; round++)
+        {
+            var draft = await owner.Client.PostJsonAsync<InvoiceResponse>(
+                "api/v1/invoices", TestData.NewInvoice(customer.Id));
+            var sends = new List<Func<Task<HttpResponseMessage>>>
+            {
+                () => owner.Client.PostAsJsonAsync(
+                    $"api/v1/invoices/{draft.Id}/issue", TestData.IssueToday(), ApiJson.Options),
+            };
+            sends.AddRange(Enumerable.Range(1, 6).Select<int, Func<Task<HttpResponseMessage>>>(price => () =>
+                owner.Client.PutAsJsonAsync(
+                    $"api/v1/invoices/{draft.Id}", PricedAt(customer.Id, 100 + price), ApiJson.Options)));
+
+            var responses = await FireAllAsync(sends);
+
+            Assert.DoesNotContain(responses, r => (int)r.StatusCode >= 500);
+            Assert.Equal(HttpStatusCode.OK, responses[0].StatusCode);
+            Assert.All(
+                responses.Skip(1),
+                r => Assert.True(
+                    r.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict,
+                    $"A change answered {(int)r.StatusCode}."));
+
+            var reported = await responses[0].Content.ReadFromJsonAsync<InvoiceResponse>(ApiJson.Options);
+            var stored = await owner.Client.GetFromJsonAsync<InvoiceResponse>(
+                $"api/v1/invoices/{draft.Id}", ApiJson.Options);
+            Assert.Equal(reported!.Total, stored!.Total);
+            Assert.Equal(
+                reported.Lines.Select(l => $"{l.Description} {l.Quantity} {l.UnitPrice}"),
+                stored.Lines.Select(l => $"{l.Description} {l.Quantity} {l.UnitPrice}"));
+        }
+    }
+
+    // Issuing takes the next number, so a draft that is issued and also deleted would leave a number with no
+    // invoice behind it, which a VAT invoice sequence must never do. One of the two has to win and the
+    // other has to find that it lost.
+    [Fact]
+    public async Task Deleting_a_draft_while_it_is_issued_never_does_both_and_leaves_no_gap()
+    {
+        var owner = await factory.CreateTenantAsync();
+        var customer = await owner.Client.CreateCustomerAsync("Race Customer");
+        var numbers = new List<string?>();
+
+        for (var round = 0; round < 6; round++)
+        {
+            var draft = await owner.Client.PostJsonAsync<InvoiceResponse>(
+                "api/v1/invoices", TestData.NewInvoice(customer.Id));
+
+            var responses = await FireAllAsync(
+            [
+                () => owner.Client.PostAsJsonAsync(
+                    $"api/v1/invoices/{draft.Id}/issue", TestData.IssueToday(), ApiJson.Options),
+                () => owner.Client.DeleteAsync($"api/v1/invoices/{draft.Id}"),
+            ]);
+
+            var issue = responses[0].StatusCode;
+            var delete = responses[1].StatusCode;
+            var issuedFirst = issue == HttpStatusCode.OK && delete == HttpStatusCode.Conflict;
+            var deletedFirst = delete == HttpStatusCode.NoContent && issue == HttpStatusCode.NotFound;
+            Assert.True(issuedFirst || deletedFirst, $"The issue answered {(int)issue} and the delete {(int)delete}.");
+
+            using var read = await owner.Client.GetAsync($"api/v1/invoices/{draft.Id}");
+            Assert.Equal(issuedFirst ? HttpStatusCode.OK : HttpStatusCode.NotFound, read.StatusCode);
+
+            if (issuedFirst)
+            {
+                numbers.Add((await responses[0].Content.ReadFromJsonAsync<InvoiceResponse>(ApiJson.Options))!.Number);
+            }
+        }
+
+        var year = TestData.Today.Year;
+        Assert.Equal(
+            Enumerable.Range(1, numbers.Count).Select(n => $"INV-{year}-{n:D4}"),
+            numbers);
+    }
+
     [Fact]
     public async Task Payments_and_credit_notes_racing_on_one_invoice_never_error_or_overshoot()
     {
@@ -138,6 +223,9 @@ public class InvoiceConcurrencyTests(ClearedApiFactory factory)
 
         return (owner, await owner.Client.CreateIssuedInvoiceAsync(customer.Id));
     }
+
+    private static UpdateInvoiceRequest PricedAt(Guid customerId, int price) =>
+        new(customerId, [new CreateInvoiceLineRequest("Consulting", 1m, $"{price}.00")]);
 
     private static Task<IReadOnlyList<HttpResponseMessage>> FireAsync(Func<Task<HttpResponseMessage>> send) =>
         FireAllAsync(Enumerable.Repeat(send, Callers));

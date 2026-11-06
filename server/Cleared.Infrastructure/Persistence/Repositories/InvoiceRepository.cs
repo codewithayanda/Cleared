@@ -9,6 +9,8 @@ public sealed class InvoiceRepository(ClearedDbContext dbContext) : IInvoiceRepo
     public async Task AddAsync(Invoice invoice, CancellationToken cancellationToken) =>
         await dbContext.Invoices.AddAsync(invoice, cancellationToken);
 
+    public void Remove(Invoice invoice) => dbContext.Invoices.Remove(invoice);
+
     public async Task<Invoice?> GetByIdAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken) =>
         await dbContext.Invoices
             .Include(i => i.Lines)

@@ -50,6 +50,7 @@
           >
             Address
           </th>
+          <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
         </tr>
       </thead>
       <tbody class="divide-y divide-steel-100">
@@ -59,6 +60,13 @@
             <td class="px-4 py-3 text-sm text-steel-600">{{ customer.email || '—' }}</td>
             <td class="px-4 py-3 text-sm text-steel-600">{{ customer.vatNumber || '—' }}</td>
             <td class="px-4 py-3 text-sm text-steel-600">{{ customer.address || '—' }}</td>
+            <td class="px-4 py-3 text-right text-sm">
+              <a
+                [routerLink]="['/customers', customer.id, 'edit']"
+                class="font-medium text-gold-600 hover:text-gold-700"
+                >Edit<span class="sr-only"> {{ customer.name }}</span></a
+              >
+            </td>
           </tr>
         }
       </tbody>

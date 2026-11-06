@@ -124,7 +124,9 @@ public class TenantWriteInterceptorTests(ClearedApiFactory factory)
         await using var dbContext = CreateContext(new FixedTenant(world.Intruder.TenantId));
         var draft = await dbContext.Invoices.IgnoreQueryFilters().Include(i => i.Lines)
             .SingleAsync(i => i.Id == world.DraftInvoice.Id);
-        draft.Issue("INV-9999", TestData.Today, TestData.Today, TestData.Today.AddDays(30), DocumentType.Invoice, 0.15m);
+        draft.Issue(
+            "INV-9999", TestData.Today, TestData.Today, TestData.Today.AddDays(30), DocumentType.Invoice, 0.15m,
+            new CustomerDetails("Smuggled Co", null, null), new SupplierDetails("Smuggled Ltd", null, null, null));
 
         await Assert.ThrowsAsync<TenantMismatchException>(() => dbContext.SaveChangesAsync());
 

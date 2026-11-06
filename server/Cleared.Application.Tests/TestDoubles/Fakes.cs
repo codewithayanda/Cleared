@@ -59,6 +59,8 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
         return Task.CompletedTask;
     }
 
+    public void Remove(Invoice invoice) => _invoices.Remove(invoice.Id);
+
     public Task<Invoice?> GetByIdAsync(Guid tenantId, Guid invoiceId, CancellationToken cancellationToken) =>
         Task.FromResult(_invoices.GetValueOrDefault(invoiceId) is { } i && i.TenantId == tenantId ? i : null);
 

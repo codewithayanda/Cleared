@@ -1,11 +1,12 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CustomerService } from '@core/services/customer.service';
 import { InvoiceService } from '@core/services/invoice.service';
 import { Customer } from '@core/models/customer.model';
-import { VatTreatment } from '@core/models/invoice.model';
+import { Invoice, InvoiceLine, VatTreatment } from '@core/models/invoice.model';
 import { IdempotencyKey } from '@core/utils/idempotency-key';
 
 @Component({
@@ -20,11 +21,31 @@ export class InvoiceForm {
   private readonly invoiceService = inject(InvoiceService);
   private readonly router = inject(Router);
 
+  // The draft being changed, or null when the page is for starting a new one.
+  private readonly editingId = inject(ActivatedRoute).snapshot.paramMap.get('id');
+
   // Reused by every retry of this form. The page is left on success, so it is never renewed.
   private readonly idempotencyKey = new IdempotencyKey();
 
+  protected readonly editing = this.editingId !== null;
+  protected readonly loading = signal(this.editing);
+  protected readonly notFound = signal(false);
+  protected readonly issued = signal(false);
   protected readonly customers = signal<Customer[]>([]);
   protected readonly submitting = signal(false);
+  protected readonly saveError = signal<string | null>(null);
+
+  // Leaving goes back to where the person came from: the draft when it is being changed, else the list.
+  protected readonly leaveLink =
+    this.editingId === null ? ['/invoices'] : ['/invoices', this.editingId];
+
+  protected readonly submitLabel = computed(() => {
+    if (this.submitting()) {
+      return 'Saving…';
+    }
+
+    return this.editing ? 'Save changes' : 'Save draft';
+  });
 
   // NotApplicable isn't offered here. See VatTreatment.
   protected readonly vatTreatments: { value: VatTreatment; label: string }[] = [
@@ -40,18 +61,43 @@ export class InvoiceForm {
 
   constructor() {
     this.customerService.list().subscribe((customers) => this.customers.set(customers));
+
+    if (this.editingId === null) {
+      return;
+    }
+
+    this.invoiceService.getById(this.editingId).subscribe({
+      next: (invoice) => {
+        // Only a draft can be changed. The server refuses the rest, so say so before anything is typed.
+        if (invoice.status === 'Draft') {
+          this.fill(invoice);
+        } else {
+          this.issued.set(true);
+        }
+        this.loading.set(false);
+      },
+      error: () => {
+        this.notFound.set(true);
+        this.loading.set(false);
+      },
+    });
   }
 
   protected get lines() {
     return this.form.controls.lines;
   }
 
-  protected newLine() {
+  // The form offers three treatments. A line saved as NotApplicable, which is what a business that is not
+  // VAT registered always gets, opens as Standard, and the server makes it NotApplicable again for such a
+  // business when the change is saved.
+  protected newLine(line?: InvoiceLine) {
     return this.fb.nonNullable.group({
-      description: ['', Validators.required],
-      quantity: [1, [Validators.required, Validators.min(0.0001)]],
-      unitPrice: [0, [Validators.required, Validators.min(0.01)]],
-      vatTreatment: this.fb.nonNullable.control<VatTreatment>('Standard'),
+      description: [line?.description ?? '', Validators.required],
+      quantity: [line?.quantity ?? 1, [Validators.required, Validators.min(0.0001)]],
+      unitPrice: [line ? Number(line.unitPrice) : 0, [Validators.required, Validators.min(0.01)]],
+      vatTreatment: this.fb.nonNullable.control<VatTreatment>(
+        !line || line.vatTreatment === 'NotApplicable' ? 'Standard' : line.vatTreatment,
+      ),
     });
   }
 
@@ -83,25 +129,57 @@ export class InvoiceForm {
     }
 
     const { customerId, lines } = this.form.getRawValue();
+    const request = {
+      customerId,
+      lines: lines.map((line) => ({
+        description: line.description,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice.toFixed(2),
+        vatTreatment: line.vatTreatment,
+      })),
+    };
 
     this.submitting.set(true);
+    this.saveError.set(null);
 
-    this.invoiceService
-      .create(
-        {
-          customerId,
-          lines: lines.map((line) => ({
-            description: line.description,
-            quantity: line.quantity,
-            unitPrice: line.unitPrice.toFixed(2),
-            vatTreatment: line.vatTreatment,
-          })),
-        },
-        this.idempotencyKey.value,
-      )
-      .subscribe({
-        next: (invoice) => this.router.navigate(['/invoices', invoice.id]),
-        error: () => this.submitting.set(false),
-      });
+    const save =
+      this.editingId === null
+        ? this.invoiceService.create(request, this.idempotencyKey.value)
+        : this.invoiceService.update(this.editingId, request);
+
+    save.subscribe({
+      next: (invoice) => this.router.navigate(['/invoices', invoice.id]),
+      error: (error: unknown) => {
+        this.submitting.set(false);
+        this.saveError.set(saveErrorMessage(error));
+      },
+    });
   }
+
+  private fill(invoice: Invoice): void {
+    this.lines.clear();
+    invoice.lines.forEach((line) => this.lines.push(this.newLine(line)));
+
+    // A draft with no lines still gets one empty line to type into.
+    if (this.lines.length === 0) {
+      this.addLine();
+    }
+
+    this.form.controls.customerId.setValue(invoice.customerId);
+  }
+}
+
+// The two answers the server gives that the person can act on, and a general one for the rest.
+function saveErrorMessage(error: unknown): string {
+  const status = error instanceof HttpErrorResponse ? error.status : 0;
+
+  if (status === 409) {
+    return 'This invoice has been issued, so it can no longer be changed.';
+  }
+
+  if (status === 404) {
+    return 'This draft no longer exists.';
+  }
+
+  return 'Could not save the invoice. Please try again.';
 }

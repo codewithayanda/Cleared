@@ -39,6 +39,22 @@
           Record payment
         </button>
       }
+      @if (inv.status === 'Draft') {
+        <a
+          [routerLink]="['/invoices', inv.id, 'edit']"
+          class="rounded-md border border-steel-300 bg-white px-4 py-2 text-sm font-medium text-steel-700 shadow-sm transition-colors hover:bg-steel-50"
+          >Edit</a
+        >
+        @if (!showDeleteConfirm()) {
+          <button
+            type="button"
+            (click)="showDeleteConfirm.set(true)"
+            class="rounded-md border border-steel-300 bg-white px-4 py-2 text-sm font-medium text-status-overdue shadow-sm transition-colors hover:bg-steel-50"
+          >
+            Delete
+          </button>
+        }
+      }
       @if (inv.status === 'Draft' && !showIssueForm()) {
         <button
           type="button"
@@ -116,6 +132,41 @@
         <div class="mt-4 rounded-md border border-status-overdue/30 bg-white p-3">
           <p class="text-sm font-medium text-status-overdue">{{ paymentError() }}</p>
         </div>
+      }
+    </div>
+  }
+
+  @if (showDeleteConfirm()) {
+    <div class="mb-6 rounded-lg border border-status-overdue/40 bg-white p-5">
+      <h2 class="text-sm font-medium text-steel-800">Delete this draft?</h2>
+      <p class="mt-1 text-xs text-steel-600">
+        It is removed for good. A draft has no invoice number yet, so your numbering is not
+        affected.
+      </p>
+
+      <div class="mt-4 flex items-center gap-4">
+        <button
+          type="button"
+          (click)="confirmDelete()"
+          [disabled]="deleting()"
+          class="rounded-md bg-status-overdue px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:opacity-90 disabled:opacity-60"
+        >
+          {{ deleting() ? 'Deleting…' : 'Delete draft' }}
+        </button>
+        <button
+          type="button"
+          (click)="showDeleteConfirm.set(false)"
+          [disabled]="deleting()"
+          class="text-sm font-medium text-steel-500 hover:text-steel-700"
+        >
+          Cancel
+        </button>
+      </div>
+
+      @if (deleteError()) {
+        <p class="mt-4 text-sm font-medium text-status-overdue" role="alert">
+          {{ deleteError() }}
+        </p>
       }
     </div>
   }

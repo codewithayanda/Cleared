@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using Cleared.Application.CreditNotes;
 using Cleared.Application.Customers;
+using Cleared.Application.Invoices;
 using Cleared.Application.Payments;
 using Cleared.Application.Tenants;
 
@@ -65,11 +66,20 @@ public static class IsolationCases
         new(
             HttpMethod.Post, "api/v1/customers", Blocked.OwnTenantOnly,
             Body: _ => new CreateCustomerRequest("Intruder Co", null, null, null)),
+        new(HttpMethod.Get, "api/v1/customers/{id:guid}", Blocked.NotFound, world => world.Customer.Id),
+        new(
+            HttpMethod.Put, "api/v1/customers/{id:guid}", Blocked.NotFound, world => world.Customer.Id,
+            _ => new UpdateCustomerRequest("Intruder Edit", null, null, null)),
         new(HttpMethod.Get, "api/v1/invoices", Blocked.EmptyList),
         new(
             HttpMethod.Post, "api/v1/invoices", Blocked.BadRequest,
             Body: world => TestData.NewInvoice(world.Customer.Id)),
         new(HttpMethod.Get, "api/v1/invoices/{id:guid}", Blocked.NotFound, world => world.IssuedInvoice.Id),
+        new(
+            HttpMethod.Put, "api/v1/invoices/{id:guid}", Blocked.NotFound, world => world.DraftInvoice.Id,
+            world => new UpdateInvoiceRequest(
+                world.Customer.Id, [new CreateInvoiceLineRequest("Intruder edit", 1m, "10.00")])),
+        new(HttpMethod.Delete, "api/v1/invoices/{id:guid}", Blocked.NotFound, world => world.DraftInvoice.Id),
         new(
             HttpMethod.Post, "api/v1/invoices/{id:guid}/issue", Blocked.NotFound,
             world => world.DraftInvoice.Id, _ => TestData.IssueToday()),
